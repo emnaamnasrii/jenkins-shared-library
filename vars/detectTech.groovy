@@ -57,25 +57,27 @@ def call() {
         tech.securityTool = 'npm-audit'
         
         def packageJson = readJSON file: 'package.json'
+        def deps = packageJson.dependencies ?: [:]
+        def devDeps = packageJson.devDependencies ?: [:]
         
         // Detect framework
-        if (packageJson.dependencies?.react) {
+        if (deps.react) {
             tech.framework = 'React'
-        } else if (packageJson.dependencies?.vue) {
+        } else if (deps.vue) {
             tech.framework = 'Vue.js'
-        } else if (packageJson.dependencies?.express) {
+        } else if (deps.express) {
             tech.framework = 'Express'
-        } else if (packageJson.dependencies?.next) {
+        } else if (deps.next) {
             tech.framework = 'Next.js'
-        } else if (packageJson.dependencies?.['@angular/core']) {
+        } else if (deps.containsKey('@angular/core')) {
             tech.framework = 'Angular'
         }
         
         // Detect test framework
-        if (packageJson.devDependencies?.jest || packageJson.dependencies?.jest) {
+        if (devDeps.jest || deps.jest) {
             tech.testFramework = 'Jest'
             tech.hasTests = true
-        } else if (packageJson.devDependencies?.mocha) {
+        } else if (devDeps.mocha) {
             tech.testFramework = 'Mocha'
             tech.hasTests = true
         } else if (packageJson.scripts?.test) {
@@ -137,9 +139,11 @@ def call() {
         tech.securityTool = 'psalm'
         
         def composerJson = readJSON file: 'composer.json'
-        if (composerJson.require?.['laravel/framework']) {
+        def composerReqs = composerJson.require ?: [:]
+        
+        if (composerReqs.containsKey('laravel/framework')) {
             tech.framework = 'Laravel'
-        } else if (composerJson.require?.['symfony/symfony']) {
+        } else if (composerReqs.containsKey('symfony/symfony')) {
             tech.framework = 'Symfony'
         }
         
