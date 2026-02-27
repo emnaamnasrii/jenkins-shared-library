@@ -67,7 +67,7 @@ spec:
   serviceAccountName: jenkins-deployer
   containers:
   - name: maven
-    image: 3.8.3-openjdk-17
+    image: maven:3.8.3-openjdk-17
     command: ['cat']
     tty: true
   - name: docker
