@@ -54,28 +54,37 @@ def call(Map config = [:]) {
         }
         
         // 4. INSTALL DEPENDENCIES
-        stage('📦 Install Dependencies') {
-            if (tech.language == 'Python') {
-                container('python') {
-                    sh '''
-                        pip install --upgrade pip --quiet
-                        if [ -f requirements.txt ]; then
-                            pip install -r requirements.txt --quiet
-                        fi
-                        pip install pytest pytest-cov pytest-html locust --quiet
-                    '''
-                }
-            }
-            else if (tech.language == 'Node.js') {
-                container('node') {
-                    sh '''
-                        if [ -f package.json ]; then
-                            npm install
-                        fi
-                    '''
-                }
-            }
+      stage('📦 Install Dependencies') {
+    if (tech.language == 'Python') {
+        container('python') {
+            sh '''
+                pip install --upgrade pip --quiet
+                pip install pip-tools --quiet
+
+                # Générer requirements.txt automatiquement si absent
+                if [ ! -f requirements.txt ]; then
+                    echo "Generating requirements.txt automatically..."
+                    pip-compile --generate-hashes --allow-unsafe --output-file=requirements.txt
+                fi
+
+                # Installer toutes les dépendances
+                pip install -r requirements.txt --quiet
+
+                # Installer les outils de test
+                pip install pytest pytest-cov pytest-html locust --quiet
+            '''
         }
+    }
+    else if (tech.language == 'Node.js') {
+        container('node') {
+            sh '''
+                if [ -f package.json ]; then
+                    npm install
+                fi
+            '''
+        }
+    }
+}
         
         // 5. UNIT TESTS
         stage('🧪 Unit Tests') {
