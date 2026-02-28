@@ -110,46 +110,13 @@ stage('📊 Code Quality (SonarQube)') {
         }
         
        // 8. TRIVY SCANS
-stage('🔍 Security: Vulnerability Scan (Trivy)') {
-    parallel(
-        'Trivy Filesystem': {
-            container('trivy') {
-                sh '''
-                    trivy fs . \
-                      --scanners vuln \
-                      --timeout 30m \
-                      --severity HIGH,CRITICAL \
-                      --format json \
-                      --output trivy-fs-report.json \
-                      --cache-dir /tmp/trivy-cache \
-                      --exit-code 0
 
-                    echo "Trivy filesystem scan completed"
-                '''
-            }
-            archiveArtifacts artifacts: 'trivy-fs-report.json', allowEmptyArchive: true
-        },
-
-        'Trivy Image': {
-            container('trivy') {
-                sh """
-                    trivy image ${imageName}:${env.IMAGE_TAG} \
-                      --scanners vuln \
-                      --timeout 30m \
-                      --severity HIGH,CRITICAL \
-                      --format json \
-                      --output trivy-image-report.json \
-                      --cache-dir /tmp/trivy-cache \
-                      --exit-code 0
-
-                    echo "Trivy image scan completed"
-                """
-            }
-            archiveArtifacts artifacts: 'trivy-image-report.json', allowEmptyArchive: true
-        }
-    )
+        stage('Run Trivy Scans') {
+    script {
+        def trivyScan = load 'runTrivyScans.groovy'
+        trivyScan.call(imageName: env.imageName, imageTag: env.IMAGE_TAG)
+    }
 }
-        
         // 9. DEPLOY TO K8S
         stage('🚀 Deploy to Kubernetes') {
             deployToK8s(
