@@ -31,6 +31,11 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+    
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
 
   volumes:
   - name: docker-sock
@@ -64,6 +69,10 @@ spec:
 
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    command: ['cat']
+    tty: true
+  - name: trivy
+    image: aquasec/trivy:latest
     command: ['cat']
     tty: true
 
@@ -101,6 +110,10 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
 
   volumes:
   - name: docker-sock
@@ -134,6 +147,10 @@ spec:
 
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    command: ['cat']
+    tty: true
+  - name: trivy
+    image: aquasec/trivy:latest
     command: ['cat']
     tty: true
 
@@ -171,6 +188,10 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
 
   volumes:
   - name: docker-sock
@@ -204,6 +225,10 @@ spec:
 
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    command: ['cat']
+    tty: true
+  - name: trivy
+    image: aquasec/trivy:latest
     command: ['cat']
     tty: true
 
@@ -241,6 +266,10 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
 
   volumes:
   - name: docker-sock
@@ -271,6 +300,10 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
 
   volumes:
   - name: docker-sock
