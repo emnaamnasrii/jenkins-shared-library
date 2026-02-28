@@ -2,7 +2,7 @@
 
 def call(Map config = [:]) {
     def repoUrl = config.repoUrl
-    def imageName = config.imageName ?: env.JOB_NAME.toLowerCase().replaceAll('/', '-')
+    def imageName = config.imageName ?: env.JOB_NAME.toLowerCase()
     def namespace = config.namespace ?: 'dev'
     def runE2E = config.runE2E ?: true
     def runPerf = config.runPerf ?: true
@@ -93,12 +93,13 @@ def call(Map config = [:]) {
         }
         
         // 6. SONARQUBE ANALYSIS
-        stage('📊 Code Quality (SonarQube)') {
-            runSonarAnalysis(
-                projectKey: imageName,
-                projectName: imageName
-            )
-        }
+
+stage('📊 Code Quality (SonarQube)') {
+    runSonarAnalysis(
+        projectKey: imageName.replaceAll('/', '-'),
+        projectName: imageName.replaceAll('/', '-')
+    )
+}
         
         // 7. BUILD DOCKER IMAGE
         stage('🐳 Build Docker Image') {
