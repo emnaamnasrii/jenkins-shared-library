@@ -111,14 +111,10 @@ stage('📊 Code Quality (SonarQube)') {
         
   // 8. TRIVY SCANS
 stage('🔍 Security: Vulnerability Scan (Trivy)') {
-    script {
-        def trivyScan = load 'runTrivyScans.groovy'
-
-        trivyScan.call(
-            imageName: imageName,
-            imageTag: env.IMAGE_TAG
-        )
-    }
+    runTrivyScans(
+        imageName: imageName,
+        imageTag: env.IMAGE_TAG
+    )
 }
         // 9. DEPLOY TO K8S
         stage('🚀 Deploy to Kubernetes') {
