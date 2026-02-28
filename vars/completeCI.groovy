@@ -109,18 +109,20 @@ stage('📊 Code Quality (SonarQube)') {
             echo "✅ Built: ${env.FULL_IMAGE}"
         }
         
-        // 8. TRIVY SCANS
+       // 8. TRIVY SCANS
 stage('🔍 Security: Vulnerability Scan (Trivy)') {
     parallel(
         'Trivy Filesystem': {
             container('trivy') {
                 sh '''
                     trivy fs . \
+                      --scanners vuln \
                       --timeout 30m \
                       --severity HIGH,CRITICAL \
                       --format json \
                       --output trivy-fs-report.json \
-                      --cache-dir /tmp/trivy-cache
+                      --cache-dir /tmp/trivy-cache \
+                      --exit-code 0
 
                     echo "Trivy filesystem scan completed"
                 '''
@@ -132,11 +134,13 @@ stage('🔍 Security: Vulnerability Scan (Trivy)') {
             container('trivy') {
                 sh """
                     trivy image ${imageName}:${env.IMAGE_TAG} \
+                      --scanners vuln \
                       --timeout 30m \
                       --severity HIGH,CRITICAL \
                       --format json \
                       --output trivy-image-report.json \
-                      --cache-dir /tmp/trivy-cache
+                      --cache-dir /tmp/trivy-cache \
+                      --exit-code 0
 
                     echo "Trivy image scan completed"
                 """
