@@ -110,39 +110,37 @@ stage('📊 Code Quality (SonarQube)') {
         }
         
         // 8. TRIVY SCANS
-      stage('🔍 Security: Vulnerability Scan (Trivy)') {
+stage('🔍 Security: Vulnerability Scan (Trivy)') {
     parallel(
         'Trivy Filesystem': {
             container('trivy') {
                 sh '''
-                    trivy fs \
+                    trivy fs . \
                       --timeout 30m \
-
                       --severity HIGH,CRITICAL \
                       --format json \
-                      --output trivy-fs-report.json .
+                      --output trivy-fs-report.json \
+                      --cache-dir /tmp/trivy-cache
 
                     echo "Trivy filesystem scan completed"
                 '''
             }
-
             archiveArtifacts artifacts: 'trivy-fs-report.json', allowEmptyArchive: true
         },
 
         'Trivy Image': {
             container('trivy') {
                 sh """
-                    trivy image \
-                     --timeout 30m \
-
+                    trivy image ${imageName}:${env.IMAGE_TAG} \
+                      --timeout 30m \
                       --severity HIGH,CRITICAL \
                       --format json \
-                      --output trivy-image-report.json ${imageName}:${env.IMAGE_TAG}
+                      --output trivy-image-report.json \
+                      --cache-dir /tmp/trivy-cache
 
                     echo "Trivy image scan completed"
                 """
             }
-
             archiveArtifacts artifacts: 'trivy-image-report.json', allowEmptyArchive: true
         }
     )
