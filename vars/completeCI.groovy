@@ -116,6 +116,8 @@ stage('📊 Code Quality (SonarQube)') {
             container('trivy') {
                 sh '''
                     trivy fs \
+                      --timeout 30m \
+
                       --severity HIGH,CRITICAL \
                       --format json \
                       --output trivy-fs-report.json .
@@ -131,6 +133,8 @@ stage('📊 Code Quality (SonarQube)') {
             container('trivy') {
                 sh """
                     trivy image \
+                     --timeout 30m \
+
                       --severity HIGH,CRITICAL \
                       --format json \
                       --output trivy-image-report.json ${imageName}:${env.IMAGE_TAG}
