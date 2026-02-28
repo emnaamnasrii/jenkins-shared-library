@@ -14,6 +14,7 @@ spec:
     image: python:3.11-slim
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -22,15 +23,23 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else if (language == 'nodejs') {
         yaml = '''
 apiVersion: v1
@@ -42,6 +51,7 @@ spec:
     image: node:18-alpine
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -50,15 +60,23 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else if (language == 'java-maven') {
         yaml = '''
 apiVersion: v1
@@ -70,6 +88,7 @@ spec:
     image: maven:3.8.3-openjdk-17
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -78,15 +97,23 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else if (language == 'java-gradle') {
         yaml = '''
 apiVersion: v1
@@ -98,6 +125,7 @@ spec:
     image: gradle:8-jdk17
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -106,15 +134,23 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else if (language == 'golang') {
         yaml = '''
 apiVersion: v1
@@ -126,6 +162,7 @@ spec:
     image: golang:1.21-alpine
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -134,15 +171,23 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else if (language == 'php') {
         yaml = '''
 apiVersion: v1
@@ -154,6 +199,7 @@ spec:
     image: php:8.2-cli
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -162,15 +208,23 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else if (language == 'ruby') {
         yaml = '''
 apiVersion: v1
@@ -182,6 +236,7 @@ spec:
     image: ruby:3.2-slim
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -190,17 +245,24 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
+
     else {
-        // Unknown language - pod minimal
         yaml = '''
 apiVersion: v1
 kind: Pod
@@ -211,6 +273,7 @@ spec:
     image: alpine:3.18
     command: ['cat']
     tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -219,11 +282,17 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
 '''
     }
-    
+
     return yaml
 }

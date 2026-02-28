@@ -12,6 +12,7 @@ def call(Map config = [:]) {
     def buildResult
     def appUrl
     
+    
     try {
         // 1. CLONE REPO
         stage('📥 Clone Repository') {
@@ -108,12 +109,39 @@ def call(Map config = [:]) {
         }
         
         // 8. TRIVY SCANS
-        stage('🔍 Security: Vulnerability Scan (Trivy)') {
-            runTrivyScans(
-                imageName: imageName,
-                imageTag: env.IMAGE_TAG
-            )
+      stage('🔍 Security: Vulnerability Scan (Trivy)') {
+    parallel(
+        'Trivy Filesystem': {
+            container('trivy') {
+                sh '''
+                    trivy fs \
+                      --severity HIGH,CRITICAL \
+                      --format json \
+                      --output trivy-fs-report.json .
+
+                    echo "Trivy filesystem scan completed"
+                '''
+            }
+
+            archiveArtifacts artifacts: 'trivy-fs-report.json', allowEmptyArchive: true
+        },
+
+        'Trivy Image': {
+            container('trivy') {
+                sh """
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --format json \
+                      --output trivy-image-report.json ${imageName}:${env.IMAGE_TAG}
+
+                    echo "Trivy image scan completed"
+                """
+            }
+
+            archiveArtifacts artifacts: 'trivy-image-report.json', allowEmptyArchive: true
         }
+    )
+}
         
         // 9. DEPLOY TO K8S
         stage('🚀 Deploy to Kubernetes') {
