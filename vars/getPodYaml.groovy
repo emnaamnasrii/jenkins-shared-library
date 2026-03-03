@@ -39,6 +39,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -81,6 +82,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
 
   volumes:
@@ -124,6 +126,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -166,6 +169,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -208,6 +212,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -250,6 +255,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -292,6 +298,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -329,6 +336,7 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command: ['cat']
+    args: ['while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
