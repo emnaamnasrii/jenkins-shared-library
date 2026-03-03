@@ -36,10 +36,13 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -74,13 +77,16 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
 
   volumes:
@@ -117,14 +123,18 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -159,14 +169,18 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -201,14 +215,18 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -243,14 +261,18 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -285,14 +307,18 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -322,14 +348,18 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sh', '-c', 'while true; do sleep 30; done']
+    command: ['sleep']
+    args: ['99d']
     tty: true
+
   volumes:
   - name: docker-sock
     emptyDir: {}
