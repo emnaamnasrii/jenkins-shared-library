@@ -38,8 +38,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -81,8 +80,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
 
   volumes:
@@ -125,8 +123,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -168,8 +165,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -211,8 +207,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -254,8 +249,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -297,8 +291,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
@@ -335,8 +328,7 @@ spec:
     tty: true
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['cat']
-    args: ['while true; do sleep 30; done']
+    command: ['sh', '-c', 'while true; do sleep 30; done']
     tty: true
   volumes:
   - name: docker-sock
