@@ -36,7 +36,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -73,6 +76,10 @@ spec:
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+  - name: kubectl
+    image: bitnami/kubectl:latest
     command: ['cat']
     tty: true
 
@@ -114,7 +121,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -153,7 +163,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -192,7 +205,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -231,7 +247,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -270,7 +289,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -304,7 +326,10 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
-
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
