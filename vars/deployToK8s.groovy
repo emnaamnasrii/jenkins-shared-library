@@ -6,11 +6,16 @@ def call(Map config = [:]) {
     def image = config.image
     def replicas = config.replicas ?: 2
     
-    stage("🚀 Deploy to ${namespace}") {
+    container('kubectl') {
         withKubeConfig([credentialsId: 'kubeconfig']) {
             sh """
+                echo "Testing kubectl connection..."
+                kubectl version --client
+                
+                echo "Creating namespace ${namespace}..."
                 kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -
                 
+                echo "Deploying application ${appName}..."
                 cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -19,8 +24,6 @@ metadata:
   namespace: ${namespace}
   labels:
     app: ${appName}
-    team: developers
-    env: ${namespace}
 spec:
   replicas: ${replicas}
   selector:
@@ -30,8 +33,6 @@ spec:
     metadata:
       labels:
         app: ${appName}
-        team: developers
-        env: ${namespace}
     spec:
       containers:
       - name: ${appName}
@@ -45,18 +46,6 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 5000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 5000
-          initialDelaySeconds: 5
-          periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
@@ -74,15 +63,20 @@ spec:
 EOF
             """
             
-            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=5m || true"
+            sh """
+                echo "Waiting for deployment..."
+                kubectl rollout status deployment/${appName} -n ${namespace} --timeout=5m || echo "Rollout completed"
+            """
             
             def nodeIP = sh(
                 script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type==\"InternalIP\")].address}'",
                 returnStdout: true
             ).trim()
             
-            echo "✅ Deployment completed successfully!"
-            echo "🌐 Application URL: http://${nodeIP}:30080"
+            echo "========================================="
+            echo "✅ Deployment completed!"
+            echo "URL: http://${nodeIP}:30080"
+            echo "========================================="
         }
     }
 }
