@@ -36,17 +36,15 @@ def call(Map config = [:]) {
         
         // 3. GITLEAKS SCAN
         stage('🔒 Security: Secret Scan (Gitleaks)') {
-            container('scanner') {
+          container('scanner') {
     sh '''
-        # Installer gitleaks si absent
-        if ! command -v gitleaks &> /dev/null; then
-            echo "Installing gitleaks..."
-            curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o /usr/local/bin/gitleaks
-            chmod +x /usr/local/bin/gitleaks
-        fi
+        export PATH=$PATH:/tmp
+        # Télécharger gitleaks dans /tmp
+        curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o /tmp/gitleaks
+        chmod +x /tmp/gitleaks
 
         # Lancer le scan
-        gitleaks detect \
+        /tmp/gitleaks detect \
             --source=. \
             --report-path=gitleaks-report.json \
             --report-format=json \
