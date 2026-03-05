@@ -22,6 +22,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -68,6 +69,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -114,6 +116,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -160,6 +163,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -206,6 +210,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -252,6 +257,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -298,6 +304,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock
@@ -344,6 +351,7 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command: ['cat']
     tty: true
     volumeMounts:
     - name: docker-sock

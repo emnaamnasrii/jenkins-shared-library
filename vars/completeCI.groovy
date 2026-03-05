@@ -37,21 +37,29 @@ def call(Map config = [:]) {
         // 3. GITLEAKS SCAN
         stage('🔒 Security: Secret Scan (Gitleaks)') {
             container('scanner') {
-                sh '''
-                    gitleaks detect \
-                        --source=. \
-                        --report-path=gitleaks-report.json \
-                        --report-format=json \
-                        --no-git \
-                        --verbose || true
-                    
-                    if [ -f gitleaks-report.json ]; then
-                        echo "Gitleaks scan completed"
-                        cat gitleaks-report.json
-                    fi
-                '''
-                archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
-            }
+    sh '''
+        # Installer gitleaks si absent
+        if ! command -v gitleaks &> /dev/null; then
+            echo "Installing gitleaks..."
+            curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o /usr/local/bin/gitleaks
+            chmod +x /usr/local/bin/gitleaks
+        fi
+
+        # Lancer le scan
+        gitleaks detect \
+            --source=. \
+            --report-path=gitleaks-report.json \
+            --report-format=json \
+            --no-git \
+            --verbose || true
+
+        if [ -f gitleaks-report.json ]; then
+            echo "Gitleaks scan completed"
+            cat gitleaks-report.json
+        fi
+    '''
+    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+}
         }
         
         // 4. INSTALL DEPENDENCIES
@@ -86,6 +94,20 @@ def call(Map config = [:]) {
         }
     }
 }
+
+// 2. SANITY CHECK
+stage('🔧 Sanity Check: SH & Kubectl') {
+    container('kubectl') {
+        echo "✅ Testing 'sh' inside kubectl container..."
+        sh 'echo "Hello from SH!"'
+        sh '''
+            echo "✅ Testing kubectl connectivity..."
+            kubectl version --client
+            kubectl get nodes
+        '''
+    }
+}
+
         
         // 5. UNIT TESTS
         stage('🧪 Unit Tests') {
