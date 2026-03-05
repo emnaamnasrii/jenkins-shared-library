@@ -40,8 +40,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -87,8 +87,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -134,8 +134,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done'] 
     tty: true
 
   volumes:
@@ -181,8 +181,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -228,8 +228,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -275,8 +275,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -322,8 +322,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -364,8 +364,8 @@ spec:
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ['sleep']
-    args: ['99d']
+    command: ['sh']                 # <-- shell intéractif
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
