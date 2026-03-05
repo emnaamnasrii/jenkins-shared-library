@@ -6,6 +6,13 @@ def call(Map config = [:]) {
     def image = config.image
     def replicas = config.replicas ?: 2
     
+    // ✅ AJOUT : Nettoyer le nom pour Kubernetes (enlever /, _, etc.)
+    appName = appName.replaceAll('[/_]', '-').toLowerCase()
+    
+    echo "Deploying application: ${appName}"
+    echo "Image: ${image}"
+    echo "Namespace: ${namespace}"
+    
     container('kubectl') {
         withKubeConfig([credentialsId: 'kubeconfig']) {
             // Créer namespace
@@ -70,6 +77,9 @@ spec:
             
             echo "========================================="
             echo "✅ Deployment completed!"
+            echo "Application: ${appName}"
+            echo "Image: ${image}"
+            echo "Namespace: ${namespace}"
             echo "URL: http://${nodeIP}:30080"
             echo "========================================="
         }
