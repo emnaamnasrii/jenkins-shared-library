@@ -8,22 +8,16 @@ def call(Map config = [:]) {
     
     container('kubectl') {
         withKubeConfig([credentialsId: 'kubeconfig']) {
-            sh """
-                echo "Testing kubectl connection..."
-                kubectl version --client
-                
-                echo "Creating namespace ${namespace}..."
-                kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -
-                
-                echo "Deploying application ${appName}..."
-                cat <<EOF | kubectl apply -f -
+            // Créer namespace
+            sh "kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -"
+            
+            // Créer deployment YAML
+            writeFile file: 'deployment.yaml', text: """
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ${appName}
   namespace: ${namespace}
-  labels:
-    app: ${appName}
 spec:
   replicas: ${replicas}
   selector:
@@ -60,14 +54,15 @@ spec:
   - port: 5000
     targetPort: 5000
     nodePort: 30080
-EOF
-            """
+"""
             
-            sh """
-                echo "Waiting for deployment..."
-                kubectl rollout status deployment/${appName} -n ${namespace} --timeout=5m || echo "Rollout completed"
-            """
+            // Appliquer
+            sh "kubectl apply -f deployment.yaml"
             
+            // Attendre rollout
+            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=5m || echo 'Rollout completed'"
+            
+            // Obtenir URL
             def nodeIP = sh(
                 script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type==\"InternalIP\")].address}'",
                 returnStdout: true
