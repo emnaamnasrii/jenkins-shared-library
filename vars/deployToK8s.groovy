@@ -6,7 +6,7 @@ def call(Map config = [:]) {
     def image = config.image
     def replicas = config.replicas ?: 2
     
-    // ✅ AJOUT : Nettoyer le nom pour Kubernetes (enlever /, _, etc.)
+    // Nettoyer le nom pour Kubernetes
     appName = appName.replaceAll('[/_]', '-').toLowerCase()
     
     echo "Deploying application: ${appName}"
@@ -25,6 +25,10 @@ kind: Deployment
 metadata:
   name: ${appName}
   namespace: ${namespace}
+  labels:
+    app: ${appName}
+    env: ${namespace}
+    team: developers
 spec:
   replicas: ${replicas}
   selector:
@@ -34,6 +38,8 @@ spec:
     metadata:
       labels:
         app: ${appName}
+        env: ${namespace}
+        team: developers
     spec:
       containers:
       - name: ${appName}
@@ -53,6 +59,10 @@ kind: Service
 metadata:
   name: ${appName}
   namespace: ${namespace}
+  labels:
+    app: ${appName}
+    env: ${namespace}
+    team: developers
 spec:
   type: NodePort
   selector:
