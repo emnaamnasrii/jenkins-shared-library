@@ -39,7 +39,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -86,7 +86,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -133,7 +133,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done'] 
     tty: true
@@ -180,7 +180,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -227,7 +227,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -274,7 +274,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -321,7 +321,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -363,7 +363,7 @@ spec:
     tty: true
 
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']                 # <-- shell intéractif
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
