@@ -70,23 +70,20 @@ def call(Map config = [:]) {
     // ========================================
 else if (tech.language == 'Java' && tech.buildTool == 'mvn') {
     container('maven') {
-        // Monte un cache Maven pour accélérer les builds
-        volumeMounts([containerPath: '/root/.m2', hostPath: '/cache/maven'])
-
-        sh """
+        sh '''
             set -e
 
             echo "🧪 Running Maven unit tests..."
-            mvn test -Dmaven.test.failure.ignore=true -B -q
+            mvn test -Dmaven.test.failure.ignore=true
 
             echo "📊 Generating coverage report..."
-            mvn jacoco:report -B -q || true
-        """
+            mvn jacoco:report || true
+        '''
 
-        // Publier les rapports JUnit
+        // Publier les résultats des tests
         junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
 
-        // Publier le rapport de couverture Jacoco
+        // Publier le rapport Jacoco
         publishHTML([
             allowMissing: true,
             alwaysLinkToLastBuild: true,
