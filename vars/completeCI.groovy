@@ -15,10 +15,20 @@ def call(Map config = [:]) {
     
     try {
         // 1. CLONE REPO
-        stage('📥 Clone Repository') {
-            git url: repoUrl, branch: 'main', credentialsId: 'github-creds'
-            echo "✅ Repository cloned: ${repoUrl}"
+      stage('📥 Clone Repository') {
+    script {
+        def branch = 'main'
+        try {
+            git url: repoUrl, branch: branch, credentialsId: 'github-creds'
+            echo "✅ Repository cloned: ${repoUrl} (branch: ${branch})"
+        } catch (e) {
+            echo "⚠️ Branch '${branch}' not found, trying 'master'..."
+            branch = 'master'
+            git url: repoUrl, branch: branch, credentialsId: 'github-creds'
+            echo "✅ Repository cloned: ${repoUrl} (branch: ${branch})"
         }
+    }
+}
         
         // 2. DETECT TECH
         stage('🔍 Detect Technology') {
