@@ -68,20 +68,44 @@ def call(Map config = [:]) {
     // ========================================
     // JAVA (MAVEN)
     // ========================================
-    else if (tech.language == 'Java' && tech.buildTool == 'mvn') {
-        container('maven') {
+ else if (tech.language == 'Java' && tech.buildTool == 'mvn') {
+    container('maven') {
+        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_KEY')]) {
             sh '''
-                # Run tests
+                set -e
+
+                echo "🧪 Running Maven unit tests..."
                 mvn test -Dmaven.test.failure.ignore=true
-                
-                # Generate coverage report
+
+                echo "📊 Generating coverage report..."
                 mvn jacoco:report || true
-                
-                # Security scan
-                mvn org.owasp:dependency-check-maven:check || true
+
+                echo "🔒 Running OWASP Dependency-Check scan..."
+                mvn org.owasp:dependency-check-maven:check -Dnvd.apiKey=$NVD_KEY || true
             '''
         }
+        
+        // Publier les rapports
+        junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+        publishHTML([
+            allowMissing: true,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: 'target/site/jacoco',
+            reportFiles: 'index.html',
+            reportName: 'Coverage Report'
+        ])
+        
+        publishHTML([
+            allowMissing: true,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: 'target/dependency-check-report',
+            reportFiles: 'dependency-check-report.html',
+            reportName: 'OWASP Dependency-Check Report'
+        ])
     }
+}
     
     // ========================================
     // JAVA (GRADLE)
