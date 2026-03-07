@@ -15,17 +15,24 @@ def call(Map config = [:]) {
     
     try {
         // 1. CLONE REPO
-      stage('📥 Clone Repository') {
+  stage('📥 Clone Repository') {
     script {
-        def branch = 'main'
-        try {
-            git url: repoUrl, branch: branch, credentialsId: 'github-creds'
-            echo "✅ Repository cloned: ${repoUrl} (branch: ${branch})"
-        } catch (e) {
-            echo "⚠️ Branch '${branch}' not found, trying 'master'..."
-            branch = 'master'
-            git url: repoUrl, branch: branch, credentialsId: 'github-creds'
-            echo "✅ Repository cloned: ${repoUrl} (branch: ${branch})"
+        def branches = ['main', 'master']
+        def cloned = false
+
+        for (b in branches) {
+            try {
+                git url: repoUrl, branch: b, credentialsId: 'github-creds'
+                echo "✅ Repository cloned: ${repoUrl} (branch: ${b})"
+                cloned = true
+                break
+            } catch (err) {
+                echo "⚠️ Branch '${b}' not found, trying next..."
+            }
+        }
+
+        if (!cloned) {
+            error "❌ Could not clone repository. No valid branch found."
         }
     }
 }
