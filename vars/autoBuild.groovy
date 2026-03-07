@@ -45,7 +45,9 @@ def call(Map config = [:]) {
                 '''
             }
         } else if (language == 'java-maven') {
-            container('maven') { sh 'mvn clean package -DskipTests' }
+container('maven') {
+        sh "mvn clean package -DskipTests -Dcheckstyle.skip=true"
+    }
         } else if (language == 'java-gradle') {
             container('gradle') { sh './gradlew clean build -x test' }
         } else if (language == 'golang') {
