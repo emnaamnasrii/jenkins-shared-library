@@ -35,17 +35,17 @@ sonar.tests=test,tests,__tests__
 """
             break
 
-        case 'Java':
-            sonarProps += """
+	case 'Java':
+    sonarProps += """
 sonar.language=java
-sonar.java.binaries=target/classes,build/classes
-sonar.java.test.binaries=target/test-classes,build/classes/test
-sonar.junit.reportPaths=target/surefire-reports,build/test-results
-sonar.jacoco.reportPaths=target/jacoco.exec
-sonar.exclusions=**/test/**,**/target/**,**/build/**
+sonar.java.binaries=target/classes
+sonar.java.test.binaries=target/test-classes
+sonar.junit.reportPaths=target/surefire-reports
+sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+sonar.exclusions=**/test/**,**/target/**
 """
-            break
-
+    	    break
+	
         case 'Go':
             sonarProps += """
 sonar.language=go
@@ -70,19 +70,20 @@ sonar.exclusions=**/test/**,**/tests/**,**/node_modules/**,**/vendor/**,**/build
     }
 
     // Lancer l'analyse avec SonarQube
-    withSonarQubeEnv('sonarqube') {
-        container('scanner') {
-            writeFile file: 'sonar-project.properties', text: sonarProps
+withSonarQubeEnv('sonarqube') {
+    container('scanner') {
 
-            sh """
-                sonar-scanner \
-                    -Dsonar.projectKey=${projectKey} \
-                    -Dsonar.projectName="${projectName}" \
-                    -Dsonar.sources=. \
-                    || echo "⚠️ SonarQube analysis completed with warnings"
-            """
-        }
+        writeFile file: 'sonar-project.properties', text: sonarProps
+
+        sh """
+            sonar-scanner \
+                -Dsonar.projectKey=${projectKey} \
+                -Dsonar.projectName=${projectName} \
+                -Dsonar.sources=. \
+
+        """
     }
+}
 
     // Vérifier le Quality Gate avec timeout réduit
     timeout(time: 30, unit: 'MINUTES') {
