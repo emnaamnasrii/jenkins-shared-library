@@ -73,14 +73,14 @@ spec:
           httpGet:
             path: /
             port: ${port}
-          initialDelaySeconds: 10
-          periodSeconds: 5
+          initialDelaySeconds: 20
+          periodSeconds: 10
         livenessProbe:
           httpGet:
             path: /
             port: ${port}
-          initialDelaySeconds: 20
-          periodSeconds: 10
+          initialDelaySeconds: 60
+          periodSeconds: 15
         resources:
           requests:
             cpu: "100m"
