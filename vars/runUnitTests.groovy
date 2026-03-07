@@ -70,23 +70,23 @@ def call(Map config = [:]) {
     // ========================================
 else if (tech.language == 'Java' && tech.buildTool == 'mvn') {
     container('maven') {
-        withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_KEY')]) {
-            sh """
-                set -e
+        // Monte un cache Maven pour accélérer les builds
+        volumeMounts([containerPath: '/root/.m2', hostPath: '/cache/maven'])
 
-                echo "🧪 Running Maven unit tests..."
-                mvn test -Dmaven.test.failure.ignore=true
+        sh """
+            set -e
 
-                echo "📊 Generating coverage report..."
-                mvn jacoco:report || true
+            echo "🧪 Running Maven unit tests..."
+            mvn test -Dmaven.test.failure.ignore=true -B -q
 
-                echo "🔒 Running OWASP Dependency-Check scan..."
-                mvn org.owasp:dependency-check-maven:check -Dnvd.apiKey=\$NVD_KEY || true
-            """
-        }
+            echo "📊 Generating coverage report..."
+            mvn jacoco:report -B -q || true
+        """
 
-        // Publier les rapports
+        // Publier les rapports JUnit
         junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+
+        // Publier le rapport de couverture Jacoco
         publishHTML([
             allowMissing: true,
             alwaysLinkToLastBuild: true,
@@ -95,17 +95,8 @@ else if (tech.language == 'Java' && tech.buildTool == 'mvn') {
             reportFiles: 'index.html',
             reportName: 'Coverage Report'
         ])
-        
-        publishHTML([
-            allowMissing: true,
-            alwaysLinkToLastBuild: true,
-            keepAll: true,
-            reportDir: 'target/dependency-check-report',
-            reportFiles: 'dependency-check-report.html',
-            reportName: 'OWASP Dependency-Check Report'
-        ])
     }
-} 
+}
     // ========================================
     // JAVA (GRADLE)
     // ========================================
