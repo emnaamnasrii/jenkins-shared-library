@@ -113,7 +113,7 @@ spec:
             sh "kubectl apply -f deployment.yaml"
 
             // Attendre rollout
-            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=5m"
+            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=30m"
 
             // Obtenir node IP et nodePort
             def nodeIP = sh(script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'", returnStdout: true).trim()
