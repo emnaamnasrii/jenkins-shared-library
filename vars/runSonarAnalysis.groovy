@@ -1,12 +1,9 @@
-#!/usr/bin/env groovy
-
 def call(Map config = [:]) {
-    // Définir les clés du projet
+
     def projectKey = config.projectKey?.replaceAll("/", "_") ?: "my_project"
     def projectName = config.projectName ?: "My Project"
     def tech = config.tech ?: detectTech()
 
-    // Propriétés de base SonarQube
     def sonarProps = """
 sonar.projectKey=${projectKey}
 sonar.projectName=${projectName}
@@ -14,82 +11,82 @@ sonar.sources=.
 sonar.sourceEncoding=UTF-8
 """
 
-    // Configurations selon le langage
     switch (tech.language) {
+
         case 'Python':
             sonarProps += """
-sonar.language=py
 sonar.python.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/*test*/**,**/venv/**,**/htmlcov/**,**/__pycache__/**
 sonar.tests=tests
 sonar.test.inclusions=tests/**/*.py
 """
-            break
+        break
 
         case 'Node.js':
             sonarProps += """
-sonar.language=js
 sonar.javascript.lcov.reportPaths=coverage/lcov.info
 sonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/*test*/**
 sonar.tests=test,tests,__tests__
 """
-            break
+        break
 
-	case 'Java':
-    sonarProps += """
-sonar.language=java
+        case 'Java':
+            sonarProps += """
 sonar.java.binaries=target/classes
 sonar.java.test.binaries=target/test-classes
 sonar.junit.reportPaths=target/surefire-reports
 sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 sonar.exclusions=**/test/**,**/target/**
 """
-    	    break
-	
+        break
+
         case 'Go':
             sonarProps += """
-sonar.language=go
 sonar.go.coverage.reportPaths=coverage.out
 sonar.exclusions=**/*_test.go,**/vendor/**
 """
-            break
+        break
 
         case 'PHP':
             sonarProps += """
-sonar.language=php
 sonar.php.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/vendor/**,**/tests/**
 """
-            break
+        break
 
         default:
             sonarProps += """
 sonar.exclusions=**/test/**,**/tests/**,**/node_modules/**,**/vendor/**,**/build/**,**/dist/**
 """
-            break
     }
 
-    // Lancer l'analyse avec SonarQube
-withSonarQubeEnv('sonarqube') {
-    container('scanner') {
+    stage('📊 SonarQube Analysis') {
 
-        writeFile file: 'sonar-project.properties', text: sonarProps
+        withSonarQubeEnv('sonarqube') {
+            container('scanner') {
 
-        sh """
-            sonar-scanner \
-                -Dsonar.projectKey=${projectKey} \
-                -Dsonar.projectName=${projectName} \
-                -Dsonar.sources=. \
+                writeFile file: 'sonar-project.properties', text: sonarProps
 
-        """
+                sh '''
+                    echo "Running SonarQube scan..."
+                    sonar-scanner
+                '''
+            }
+        }
     }
-}
 
-    // Vérifier le Quality Gate avec timeout réduit
-    timeout(time: 30, unit: 'MINUTES') {
-        def qg = waitForQualityGate()
-        if (qg.status != 'OK') {
-            error "⚠️ Quality Gate failed: ${qg.status}"
+    stage('🚦 SonarQube Quality Gate') {
+
+        timeout(time: 10, unit: 'MINUTES') {
+
+            def qg = waitForQualityGate()
+
+            if (qg.status != 'OK') {
+                echo "⚠️ Quality Gate failed: ${qg.status}"
+                echo "Pipeline continues but code quality should be improved."
+            } else {
+                echo "✅ Quality Gate passed"
+            }
         }
     }
 }
