@@ -69,40 +69,50 @@ def call(Map config = [:]) {
             }
         }
 
-        // 4. INSTALL DEPENDENCIES
-        stage('📦 Install Dependencies') {
-            if (tech.language == 'Python') {
-                container('python') {
-                    sh '''
-                        python3 -m pip install --upgrade pip --quiet --user
-                        python3 -m pip install pip-tools --quiet --user
+stage('📦 Install Dependencies') {
+    if (tech.language == 'Python') {
+        container('python') {
+            sh '''
+                python3 -m pip install --upgrade pip --quiet
+                python3 -m pip install pip-tools --quiet
 
-                        if [ ! -f requirements.txt ]; then
-                            echo "Generating requirements.txt..."
-                            cat <<EOT > requirements.in
+                if [ ! -f requirements.txt ]; then
+                    echo "Generating requirements.txt..."
+                    cat <<EOT > requirements.in
 pytest>=8.3.3,<9.0.0
 pytest-cov==4.1.0
 pytest-html==3.2.0
 locust==2.40.5
 EOT
-                            pip-compile requirements.in --generate-hashes --allow-unsafe --output-file=requirements.txt
-                        fi
 
-                        pip install --user -r requirements.txt --quiet
-                    '''
-                }
-            } else if (tech.language == 'Node.js') {
-                container('node') {
-                    sh 'npm install'
-                }
-            } else if (tech.language == 'Java') {
-                container('maven') {
-                    sh 'mvn clean install -DskipTests'
-                }
-            } else {
-                echo "⚠️ Language not supported: ${tech.language}"
-            }
+                    python3 -m piptools compile requirements.in \
+                        --generate-hashes \
+                        --allow-unsafe \
+                        --output-file=requirements.txt
+                fi
+
+                python3 -m pip install -r requirements.txt --quiet
+            '''
         }
+    } 
+    else if (tech.language == 'Node.js') {
+        container('node') {
+            sh '''
+                npm install
+            '''
+        }
+    } 
+    else if (tech.language == 'Java') {
+        container('maven') {
+            sh '''
+                mvn clean install -DskipTests
+            '''
+        }
+    } 
+    else {
+        echo "⚠️ Language not supported: ${tech.language}"
+    }
+}
 
         // 5. SANITY CHECK
         stage('🔧 Sanity Check: SH & Kubectl') {
