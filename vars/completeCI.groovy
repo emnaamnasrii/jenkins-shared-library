@@ -77,48 +77,41 @@ def call(Map config = [:]) {
 }
         }
         
-  // 4. INSTALL DEPENDENCIES
-stage('📦 Install Dependencies') {
+  stage('📦 Install Dependencies') {
     if (tech.language == 'Python') {
         container('python') {
             sh '''
-                # 🔹 Mettre pip à jour
                 python3 -m pip install --upgrade pip --quiet
-
-                # 🔹 Installer pip-tools pour générer requirements.txt si besoin
                 python3 -m pip install pip-tools --quiet
 
-                # 🔹 Générer requirements.txt automatiquement si absent
                 if [ ! -f requirements.txt ]; then
-                    echo "Generating requirements.txt automatically..."
+                    echo "Generating requirements.txt..."
                     cat <<EOT > requirements.in
-                    # Dépendances principales de ton projet
-                    # Ajouter ici toutes les libs nécessaires
-                    # Exemple : requests==2.31.0
-
-                    # Outils de test avec versions fixes pour éviter les conflits
-                    pytest==7.4.0
-                    pytest-cov==4.1.0
-                    pytest-html==3.2.0
-                    locust==2.40.5
+pytest==7.4.0
+pytest-cov==4.1.0
+pytest-html==3.2.0
+locust==2.40.5
 EOT
                     pip-compile requirements.in --generate-hashes --allow-unsafe --output-file=requirements.txt
                 fi
 
-                # 🔹 Installer toutes les dépendances depuis requirements.txt
                 pip install -r requirements.txt --quiet
             '''
         }
-    }
-}
-    else if (tech.language == 'Node.js') {
+    } else if (tech.language == 'Node.js') {
         container('node') {
             sh '''
-                if [ -f package.json ]; then
-                    npm install
-                fi
+                npm install
             '''
         }
+    } else if (tech.language == 'Java') {
+        container('maven') {
+            sh '''
+                mvn clean install -DskipTests
+            '''
+        }
+    } else {
+        echo "⚠️ Language not supported: ${tech.language}"
     }
 }
 
