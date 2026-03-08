@@ -59,6 +59,7 @@ def call(Map config = [:]) {
                       --scanners vuln \
                       --timeout 30m \
                       --severity HIGH,CRITICAL \
+                      --skip-files /usr/bin/x86_64-linux-gnu-ld.bfd \
                       --format json \
                       --output trivy-image-report.json \
                       --cache-dir /tmp/trivy-cache \

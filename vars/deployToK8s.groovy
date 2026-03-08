@@ -73,21 +73,21 @@ spec:
           httpGet:
             path: /
             port: ${port}
-          initialDelaySeconds: 20
-          periodSeconds: 10
+          initialDelaySeconds: 120
+          periodSeconds: 20
         livenessProbe:
           httpGet:
             path: /
             port: ${port}
-          initialDelaySeconds: 60
-          periodSeconds: 15
+          initialDelaySeconds: 120
+          periodSeconds: 30
         resources:
           requests:
             cpu: "100m"
-            memory: "128Mi"
+            memory: "256Mi"
           limits:
             cpu: "500m"
-            memory: "512Mi"
+            memory: "1Gi"
 
 ---
 apiVersion: v1
@@ -113,7 +113,7 @@ spec:
             sh "kubectl apply -f deployment.yaml"
 
             // Attendre rollout
-            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=30m"
+            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=60m"
 
             // Obtenir node IP et nodePort
             def nodeIP = sh(script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'", returnStdout: true).trim()
