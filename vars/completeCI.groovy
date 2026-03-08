@@ -77,28 +77,40 @@ def call(Map config = [:]) {
 }
         }
         
-        // 4. INSTALL DEPENDENCIES
-      stage('📦 Install Dependencies') {
+  // 4. INSTALL DEPENDENCIES
+stage('📦 Install Dependencies') {
     if (tech.language == 'Python') {
         container('python') {
             sh '''
-                pip install --upgrade pip --quiet
-                pip install pip-tools --quiet
+                # 🔹 Mettre pip à jour
+                python3 -m pip install --upgrade pip --quiet
 
-                # Générer requirements.txt automatiquement si absent
+                # 🔹 Installer pip-tools pour générer requirements.txt si besoin
+                python3 -m pip install pip-tools --quiet
+
+                # 🔹 Générer requirements.txt automatiquement si absent
                 if [ ! -f requirements.txt ]; then
                     echo "Generating requirements.txt automatically..."
-                    pip-compile --generate-hashes --allow-unsafe --output-file=requirements.txt
+                    cat <<EOT > requirements.in
+                    # Dépendances principales de ton projet
+                    # Ajouter ici toutes les libs nécessaires
+                    # Exemple : requests==2.31.0
+
+                    # Outils de test avec versions fixes pour éviter les conflits
+                    pytest==7.4.0
+                    pytest-cov==4.1.0
+                    pytest-html==3.2.0
+                    locust==2.40.5
+EOT
+                    pip-compile requirements.in --generate-hashes --allow-unsafe --output-file=requirements.txt
                 fi
 
-                # Installer toutes les dépendances
+                # 🔹 Installer toutes les dépendances depuis requirements.txt
                 pip install -r requirements.txt --quiet
-
-                # Installer les outils de test
-                pip install pytest pytest-cov pytest-html locust --quiet
             '''
         }
     }
+}
     else if (tech.language == 'Node.js') {
         container('node') {
             sh '''
