@@ -9,6 +9,7 @@ sonar.projectKey=${projectKey}
 sonar.projectName=${projectName}
 sonar.sources=.
 sonar.sourceEncoding=UTF-8
+sonar.ws.timeout=240
 """
 
     switch (tech.language) {
@@ -20,7 +21,7 @@ sonar.exclusions=**/*test*/**,**/venv/**,**/htmlcov/**,**/__pycache__/**
 sonar.tests=tests
 sonar.test.inclusions=tests/**/*.py
 """
-        break
+            break
 
         case 'Node.js':
             sonarProps += """
@@ -28,7 +29,7 @@ sonar.javascript.lcov.reportPaths=coverage/lcov.info
 sonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/*test*/**
 sonar.tests=test,tests,__tests__
 """
-        break
+            break
 
         case 'Java':
             sonarProps += """
@@ -38,21 +39,21 @@ sonar.junit.reportPaths=target/surefire-reports
 sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 sonar.exclusions=**/test/**,**/target/**
 """
-        break
+            break
 
         case 'Go':
             sonarProps += """
 sonar.go.coverage.reportPaths=coverage.out
 sonar.exclusions=**/*_test.go,**/vendor/**
 """
-        break
+            break
 
         case 'PHP':
             sonarProps += """
 sonar.php.coverage.reportPaths=coverage.xml
 sonar.exclusions=**/vendor/**,**/tests/**
 """
-        break
+            break
 
         default:
             sonarProps += """
@@ -61,31 +62,40 @@ sonar.exclusions=**/test/**,**/tests/**,**/node_modules/**,**/vendor/**,**/build
     }
 
     stage('📊 SonarQube Analysis') {
-
         withSonarQubeEnv('sonarqube') {
             container('scanner') {
-
                 writeFile file: 'sonar-project.properties', text: sonarProps
 
-                sh '''
-                    echo "Running SonarQube scan..."
-                    sonar-scanner
-                '''
+                // Wrap Sonar scan in try/catch for better logging
+                try {
+                    sh '''
+                        echo "Running SonarQube scan..."
+                        sonar-scanner
+                    '''
+                } catch (err) {
+                    echo "❌ SonarQube scan failed!"
+                    echo "Check network connectivity to SonarQube server: ${SONAR_HOST_URL}"
+                    echo "Error: ${err}"
+                    error("SonarQube scan could not complete.")
+                }
             }
         }
     }
 
     stage('🚦 SonarQube Quality Gate') {
-
-        timeout(time: 10, unit: 'MINUTES') {
-
-            def qg = waitForQualityGate()
-
-            if (qg.status != 'OK') {
-                echo "⚠️ Quality Gate failed: ${qg.status}"
-                echo "Pipeline continues but code quality should be improved."
-            } else {
-                echo "✅ Quality Gate passed"
+        timeout(time: 20, unit: 'MINUTES') {
+            try {
+                def qg = waitForQualityGate()
+                if (qg.status != 'OK') {
+                    echo "⚠️ Quality Gate failed: ${qg.status}"
+                    echo "Pipeline continues but code quality should be improved."
+                } else {
+                    echo "✅ Quality Gate passed"
+                }
+            } catch (err) {
+                echo "⚠️ Could not retrieve SonarQube Quality Gate status!"
+                echo "Check SonarQube server or network connectivity."
+                echo "Error: ${err}"
             }
         }
     }
