@@ -177,26 +177,20 @@ EOT
             )
         }
 
-        // 11. DEPLOY DATABASE (if detected)  ✅ AJOUT
-        if (env.DB_DETECTED == 'true') {
-            stage('🗄️ Deploy Database') {
-                def envVarsMap = [:]
-                if (env.DB_ENV_VARS) {
-                    envVarsMap = new groovy.json.JsonSlurper().parseText(env.DB_ENV_VARS)
-                }
-                
-                dbConfig = deployDatabase(
-                    namespace: namespace,
-                    dbType: env.DB_TYPE,
-                    dbVersion: env.DB_VERSION,
-                    dbPort: env.DB_PORT.toInteger(),
-                    dbEnvVars: envVarsMap,
-                    appName: imageName.replaceAll('[/_]', '-')
-                )
-                
-                echo "✅ Database deployed: ${dbConfig.type} at ${dbConfig.serviceName}:${dbConfig.port}"
-            }
-        }
+ // 11. DEPLOY DATABASE (if detected)
+if (env.DB_DETECTED == 'true') {
+    stage('🗄️ Deploy Database') {
+        dbConfig = deployDatabase(
+            namespace: namespace,
+            dbType: env.DB_TYPE,
+            dbVersion: env.DB_VERSION,
+            dbPort: env.DB_PORT.toInteger(),
+            appName: imageName.replaceAll('[/_]', '-')
+        )
+        
+        echo "✅ Database deployed: ${dbConfig.type} at ${dbConfig.serviceName}:${dbConfig.port}"
+    }
+}
 
         // 12. DEPLOY TO K8S  ✅ MODIFIÉ
         stage('🚀 Deploy to Kubernetes') {

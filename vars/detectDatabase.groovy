@@ -5,8 +5,7 @@ def call() {
         type: 'none',
         detected: false,
         version: 'latest',
-        port: 0,
-        envVars: [:]
+        port: 0
     ]
     
     echo "🔍 Scanning for database configuration..."
@@ -15,16 +14,20 @@ def call() {
     if (fileExists('src/main/resources/application.properties')) {
         dbInfo = detectFromFile('src/main/resources/application.properties', dbInfo)
     }
-    if (fileExists('src/main/resources/application.yml') || fileExists('src/main/resources/application.yaml')) {
-        def ymlFile = fileExists('src/main/resources/application.yml') ? 'src/main/resources/application.yml' : 'src/main/resources/application.yaml'
-        dbInfo = detectFromFile(ymlFile, dbInfo)
+    if (fileExists('src/main/resources/application.yml')) {
+        dbInfo = detectFromFile('src/main/resources/application.yml', dbInfo)
+    }
+    if (fileExists('src/main/resources/application.yaml')) {
+        dbInfo = detectFromFile('src/main/resources/application.yaml', dbInfo)
     }
     if (fileExists('pom.xml')) {
         dbInfo = detectFromPomXml(dbInfo)
     }
-    if (fileExists('build.gradle') || fileExists('build.gradle.kts')) {
-        def gradleFile = fileExists('build.gradle') ? 'build.gradle' : 'build.gradle.kts'
-        dbInfo = detectFromFile(gradleFile, dbInfo)
+    if (fileExists('build.gradle')) {
+        dbInfo = detectFromFile('build.gradle', dbInfo)
+    }
+    if (fileExists('build.gradle.kts')) {
+        dbInfo = detectFromFile('build.gradle.kts', dbInfo)
     }
     
     // PYTHON (Django, Flask, FastAPI)
@@ -37,41 +40,37 @@ def call() {
     if (fileExists('pyproject.toml')) {
         dbInfo = detectFromFile('pyproject.toml', dbInfo)
     }
-    if (fileExists('settings.py') || fileExists('*/settings.py')) {
-        def settingsFile = sh(script: 'find . -name settings.py | head -1', returnStdout: true).trim()
-        if (settingsFile) {
-            dbInfo = detectFromFile(settingsFile, dbInfo)
-        }
+    def settingsPy = sh(script: 'find . -name "settings.py" -type f 2>/dev/null | head -1', returnStdout: true).trim()
+    if (settingsPy) {
+        dbInfo = detectFromFile(settingsPy, dbInfo)
     }
-    if (fileExists('.env') || fileExists('.env.example')) {
-        def envFile = fileExists('.env') ? '.env' : '.env.example'
-        dbInfo = detectFromFile(envFile, dbInfo)
+    if (fileExists('.env')) {
+        dbInfo = detectFromFile('.env', dbInfo)
+    }
+    if (fileExists('.env.example')) {
+        dbInfo = detectFromFile('.env.example', dbInfo)
     }
     
     // NODE.JS (Express, NestJS, etc.)
     if (fileExists('package.json')) {
         dbInfo = detectFromFile('package.json', dbInfo)
     }
-    if (fileExists('.env') || fileExists('.env.example')) {
-        def envFile = fileExists('.env') ? '.env' : '.env.example'
-        dbInfo = detectFromFile(envFile, dbInfo)
+    if (fileExists('ormconfig.json')) {
+        dbInfo = detectFromFile('ormconfig.json', dbInfo)
     }
-    if (fileExists('ormconfig.json') || fileExists('ormconfig.js')) {
-        def ormFile = fileExists('ormconfig.json') ? 'ormconfig.json' : 'ormconfig.js'
-        dbInfo = detectFromFile(ormFile, dbInfo)
+    if (fileExists('ormconfig.js')) {
+        dbInfo = detectFromFile('ormconfig.js', dbInfo)
     }
     
     // PHP (Laravel, Symfony, etc.)
     if (fileExists('composer.json')) {
         dbInfo = detectFromFile('composer.json', dbInfo)
     }
-    if (fileExists('.env') || fileExists('.env.example')) {
-        def envFile = fileExists('.env') ? '.env' : '.env.example'
-        dbInfo = detectFromFile(envFile, dbInfo)
+    if (fileExists('config/database.php')) {
+        dbInfo = detectFromFile('config/database.php', dbInfo)
     }
-    if (fileExists('config/database.php') || fileExists('config/database.yml')) {
-        def dbFile = fileExists('config/database.php') ? 'config/database.php' : 'config/database.yml'
-        dbInfo = detectFromFile(dbFile, dbInfo)
+    if (fileExists('config/database.yml')) {
+        dbInfo = detectFromFile('config/database.yml', dbInfo)
     }
     
     // GO
@@ -92,7 +91,7 @@ def call() {
         dbInfo = detectFromFile('appsettings.json', dbInfo)
     }
     
-    // Déterminer les variables d'environnement selon le type de DB
+    // Déterminer version et port selon le type de DB
     if (dbInfo.detected) {
         dbInfo = setDatabaseDefaults(dbInfo)
     }
@@ -113,47 +112,51 @@ def detectFromFile(String filePath, Map dbInfo) {
         return dbInfo
     }
     
-    def content = readFile(filePath).toLowerCase()
-    
-    // MySQL
-    if (content.contains('mysql') || content.contains('jdbc:mysql')) {
-        dbInfo.type = 'mysql'
-        dbInfo.detected = true
-    }
-    // PostgreSQL
-    else if (content.contains('postgres') || content.contains('jdbc:postgresql')) {
-        dbInfo.type = 'postgresql'
-        dbInfo.detected = true
-    }
-    // MongoDB
-    else if (content.contains('mongodb') || content.contains('mongo')) {
-        dbInfo.type = 'mongodb'
-        dbInfo.detected = true
-    }
-    // MariaDB
-    else if (content.contains('mariadb')) {
-        dbInfo.type = 'mariadb'
-        dbInfo.detected = true
-    }
-    // Redis
-    else if (content.contains('redis')) {
-        dbInfo.type = 'redis'
-        dbInfo.detected = true
-    }
-    // Oracle
-    else if (content.contains('oracle') || content.contains('jdbc:oracle')) {
-        dbInfo.type = 'oracle'
-        dbInfo.detected = true
-    }
-    // SQL Server
-    else if (content.contains('sqlserver') || content.contains('mssql')) {
-        dbInfo.type = 'sqlserver'
-        dbInfo.detected = true
-    }
-    // SQLite (généralement pas besoin de déploiement)
-    else if (content.contains('sqlite')) {
-        dbInfo.type = 'sqlite'
-        dbInfo.detected = false  // Pas de déploiement nécessaire
+    try {
+        def content = readFile(filePath).toLowerCase()
+        
+        // MySQL
+        if (content.contains('mysql') || content.contains('jdbc:mysql')) {
+            dbInfo.type = 'mysql'
+            dbInfo.detected = true
+        }
+        // PostgreSQL
+        else if (content.contains('postgres') || content.contains('jdbc:postgresql')) {
+            dbInfo.type = 'postgresql'
+            dbInfo.detected = true
+        }
+        // MongoDB
+        else if (content.contains('mongodb') || content.contains('mongo')) {
+            dbInfo.type = 'mongodb'
+            dbInfo.detected = true
+        }
+        // MariaDB
+        else if (content.contains('mariadb')) {
+            dbInfo.type = 'mariadb'
+            dbInfo.detected = true
+        }
+        // Redis
+        else if (content.contains('redis')) {
+            dbInfo.type = 'redis'
+            dbInfo.detected = true
+        }
+        // Oracle
+        else if (content.contains('oracle') || content.contains('jdbc:oracle')) {
+            dbInfo.type = 'oracle'
+            dbInfo.detected = true
+        }
+        // SQL Server
+        else if (content.contains('sqlserver') || content.contains('mssql')) {
+            dbInfo.type = 'sqlserver'
+            dbInfo.detected = true
+        }
+        // SQLite (pas de déploiement)
+        else if (content.contains('sqlite')) {
+            dbInfo.type = 'sqlite'
+            dbInfo.detected = false
+        }
+    } catch (Exception e) {
+        echo "⚠️  Error reading ${filePath}: ${e.message}"
     }
     
     return dbInfo
@@ -164,23 +167,31 @@ def detectFromPomXml(Map dbInfo) {
         return dbInfo
     }
     
-    def pom = readFile('pom.xml').toLowerCase()
-    
-    if (pom.contains('mysql-connector') || pom.contains('mysql</artifactid>')) {
-        dbInfo.type = 'mysql'
-        dbInfo.detected = true
-    }
-    else if (pom.contains('postgresql')) {
-        dbInfo.type = 'postgresql'
-        dbInfo.detected = true
-    }
-    else if (pom.contains('mongodb')) {
-        dbInfo.type = 'mongodb'
-        dbInfo.detected = true
-    }
-    else if (pom.contains('mariadb')) {
-        dbInfo.type = 'mariadb'
-        dbInfo.detected = true
+    try {
+        def pom = readFile('pom.xml').toLowerCase()
+        
+        if (pom.contains('mysql-connector') || pom.contains('<artifactid>mysql</artifactid>')) {
+            dbInfo.type = 'mysql'
+            dbInfo.detected = true
+        }
+        else if (pom.contains('postgresql')) {
+            dbInfo.type = 'postgresql'
+            dbInfo.detected = true
+        }
+        else if (pom.contains('mongodb') || pom.contains('mongo-java-driver')) {
+            dbInfo.type = 'mongodb'
+            dbInfo.detected = true
+        }
+        else if (pom.contains('mariadb')) {
+            dbInfo.type = 'mariadb'
+            dbInfo.detected = true
+        }
+        else if (pom.contains('jedis') || pom.contains('lettuce')) {
+            dbInfo.type = 'redis'
+            dbInfo.detected = true
+        }
+    } catch (Exception e) {
+        echo "⚠️  Error reading pom.xml: ${e.message}"
     }
     
     return dbInfo
@@ -191,51 +202,38 @@ def setDatabaseDefaults(Map dbInfo) {
         case 'mysql':
             dbInfo.version = '8.0'
             dbInfo.port = 3306
-            dbInfo.envVars = [
-                MYSQL_ROOT_PASSWORD: 'root123',
-                MYSQL_DATABASE: '{{APP_NAME}}',
-                MYSQL_USER: 'user',
-                MYSQL_PASSWORD: 'user123'
-            ]
             break
         
         case 'postgresql':
             dbInfo.version = '15'
             dbInfo.port = 5432
-            dbInfo.envVars = [
-                POSTGRES_PASSWORD: 'postgres123',
-                POSTGRES_DB: '{{APP_NAME}}',
-                POSTGRES_USER: 'user'
-            ]
             break
         
         case 'mongodb':
             dbInfo.version = '7.0'
             dbInfo.port = 27017
-            dbInfo.envVars = [
-                MONGO_INITDB_ROOT_USERNAME: 'root',
-                MONGO_INITDB_ROOT_PASSWORD: 'root123',
-                MONGO_INITDB_DATABASE: '{{APP_NAME}}'
-            ]
             break
         
         case 'mariadb':
             dbInfo.version = '11.0'
             dbInfo.port = 3306
-            dbInfo.envVars = [
-                MARIADB_ROOT_PASSWORD: 'root123',
-                MARIADB_DATABASE: '{{APP_NAME}}',
-                MARIADB_USER: 'user',
-                MARIADB_PASSWORD: 'user123'
-            ]
             break
         
         case 'redis':
             dbInfo.version = '7.2'
             dbInfo.port = 6379
-            dbInfo.envVars = [
-                REDIS_PASSWORD: 'redis123'
-            ]
+            break
+        
+        case 'oracle':
+            dbInfo.version = '21'
+            dbInfo.port = 1521
+            dbInfo.detected = false  // Nécessite licence
+            break
+        
+        case 'sqlserver':
+            dbInfo.version = '2022'
+            dbInfo.port = 1433
+            dbInfo.detected = false  // Nécessite licence
             break
         
         default:
