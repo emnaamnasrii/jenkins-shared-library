@@ -76,16 +76,16 @@ spec:
           httpGet:
             path: ${getHealthCheckPath(language)}
             port: ${port}
-          initialDelaySeconds: 60
+          initialDelaySeconds: 180
           periodSeconds: 10
-          failureThreshold: 3
+          failureThreshold: 10
         livenessProbe:
           httpGet:
             path: ${getHealthCheckPath(language)}
             port: ${port}
-          initialDelaySeconds: 90
-          periodSeconds: 15
-          failureThreshold: 3
+          initialDelaySeconds: 180
+          periodSeconds: 30
+          failureThreshold: 10
         resources:
           requests:
             cpu: "100m"

@@ -189,6 +189,19 @@ if (env.DB_DETECTED == 'true') {
         )
         
         echo "✅ Database deployed: ${dbConfig.type} at ${dbConfig.serviceName}:${dbConfig.port}"
+        
+        // ✅ AJOUT : Attendre que MySQL soit complètement prêt
+        container('kubectl') {
+            withKubeConfig([credentialsId: 'kubeconfig']) {
+                def dbName = "${imageName.replaceAll('[/_]', '-')}-db"
+                echo "⏳ Waiting for database to be fully ready..."
+                sh """
+                    kubectl wait --for=condition=ready pod -l app=${dbName} -n ${namespace} --timeout=20m
+                    sleep 30
+                    echo "✅ Database is ready!"
+                """
+            }
+        }
     }
 }
 

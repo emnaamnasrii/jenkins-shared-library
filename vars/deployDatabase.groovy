@@ -244,8 +244,8 @@ def generateReadinessProbe(String dbType, int port) {
             - ping
             - -h
             - localhost
-          initialDelaySeconds: 30
-          periodSeconds: 10"""
+          initialDelaySeconds: 220
+          periodSeconds: 60"""
         
         case 'postgresql':
             return """readinessProbe:
@@ -254,8 +254,8 @@ def generateReadinessProbe(String dbType, int port) {
             - pg_isready
             - -U
             - postgres
-          initialDelaySeconds: 30
-          periodSeconds: 10"""
+          initialDelaySeconds: 220
+          periodSeconds: 60"""
         
         case 'mongodb':
             return """readinessProbe:
@@ -264,8 +264,8 @@ def generateReadinessProbe(String dbType, int port) {
             - mongo
             - --eval
             - "db.adminCommand('ping')"
-          initialDelaySeconds: 30
-          periodSeconds: 10"""
+          initialDelaySeconds: 220
+          periodSeconds: 60"""
         
         case 'redis':
             return """readinessProbe:
@@ -273,14 +273,14 @@ def generateReadinessProbe(String dbType, int port) {
             command:
             - redis-cli
             - ping
-          initialDelaySeconds: 10
-          periodSeconds: 5"""
+          initialDelaySeconds: 220
+          periodSeconds: 60"""
         
         default:
             return """readinessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 30
-          periodSeconds: 10"""
+          initialDelaySeconds: 220
+          periodSeconds: 60"""
     }
 }
