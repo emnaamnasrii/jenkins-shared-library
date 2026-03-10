@@ -1,3 +1,5 @@
+#!/usr/bin/env groovy
+
 def call(Map config = [:]) {
     def repoUrl = config.repoUrl
     def imageName = config.imageName ?: env.JOB_NAME.toLowerCase()
@@ -9,6 +11,7 @@ def call(Map config = [:]) {
     def tech
     def buildResult
     def appUrl
+    def dbConfig = [deployed: false]  // ✅ AJOUT
 
     try {
         // 1. CLONE REPO
@@ -46,7 +49,25 @@ def call(Map config = [:]) {
             echo "========================================="
         }
 
-        // 3. GITLEAKS SCAN
+        // 3. DETECT DATABASE  ✅ AJOUT
+        stage('🗄️ Detect Database') {
+            def dbInfo = detectDatabase()
+            env.DB_TYPE = dbInfo.type
+            env.DB_DETECTED = dbInfo.detected.toString()
+            env.DB_VERSION = dbInfo.version
+            env.DB_PORT = dbInfo.port.toString()
+            env.DB_ENV_VARS = groovy.json.JsonOutput.toJson(dbInfo.envVars)
+            
+            echo "========================================="
+            echo "Database Detection Results:"
+            echo "Type: ${env.DB_TYPE}"
+            echo "Detected: ${env.DB_DETECTED}"
+            echo "Version: ${env.DB_VERSION}"
+            echo "Port: ${env.DB_PORT}"
+            echo "========================================="
+        }
+
+        // 4. GITLEAKS SCAN
         stage('🔒 Security: Secret Scan (Gitleaks)') {
             container('scanner') {
                 sh '''
@@ -69,52 +90,53 @@ def call(Map config = [:]) {
             }
         }
 
-stage('📦 Install Dependencies') {
-    if (tech.language == 'Python') {
-        container('python') {
-            sh '''
-                python3 -m pip install --upgrade pip --quiet
-                python3 -m pip install pip-tools --quiet
+        // 5. INSTALL DEPENDENCIES
+        stage('📦 Install Dependencies') {
+            if (tech.language == 'Python') {
+                container('python') {
+                    sh '''
+                        python3 -m pip install --upgrade pip --quiet
+                        python3 -m pip install pip-tools --quiet
 
-                if [ ! -f requirements.txt ]; then
-                    echo "Generating requirements.txt..."
-                    cat <<EOT > requirements.in
+                        if [ ! -f requirements.txt ]; then
+                            echo "Generating requirements.txt..."
+                            cat <<EOT > requirements.in
 pytest>=8.3.3,<9.0.0
 pytest-cov==4.1.0
 pytest-html==3.2.0
 locust==2.40.5
 EOT
 
-                    python3 -m piptools compile requirements.in \
-                        --generate-hashes \
-                        --allow-unsafe \
-                        --output-file=requirements.txt
-                fi
+                            python3 -m piptools compile requirements.in \
+                                --generate-hashes \
+                                --allow-unsafe \
+                                --output-file=requirements.txt
+                        fi
 
-                python3 -m pip install -r requirements.txt --quiet
-            '''
+                        python3 -m pip install -r requirements.txt --quiet
+                    '''
+                }
+            } 
+            else if (tech.language == 'Node.js') {
+                container('node') {
+                    sh '''
+                        npm install
+                    '''
+                }
+            } 
+            else if (tech.language == 'Java') {
+                container('maven') {
+                    sh '''
+                        mvn clean install -DskipTests
+                    '''
+                }
+            } 
+            else {
+                echo "⚠️ Language not supported: ${tech.language}"
+            }
         }
-    } 
-    else if (tech.language == 'Node.js') {
-        container('node') {
-            sh '''
-                npm install
-            '''
-        }
-    } 
-    else if (tech.language == 'Java') {
-        container('maven') {
-            sh '''
-                mvn clean install -DskipTests
-            '''
-        }
-    } 
-    else {
-        echo "⚠️ Language not supported: ${tech.language}"
-    }
-}
 
-        // 5. SANITY CHECK
+        // 6. SANITY CHECK
         stage('🔧 Sanity Check: SH & Kubectl') {
             container('kubectl') {
                 sh 'echo "Hello from SH!"'
@@ -126,12 +148,12 @@ EOT
             }
         }
 
-        // 6. UNIT TESTS
+        // 7. UNIT TESTS
         stage('🧪 Unit Tests') {
             runUnitTests(tech: tech)
         }
 
-        // 7. SONARQUBE ANALYSIS
+        // 8. SONARQUBE ANALYSIS
         stage('📊 Code Quality (SonarQube)') {
             runSonarAnalysis(
                 projectKey: imageName.replaceAll('/', '-'),
@@ -139,7 +161,7 @@ EOT
             )
         }
 
-        // 8. BUILD DOCKER IMAGE
+        // 9. BUILD DOCKER IMAGE
         stage('🐳 Build Docker Image') {
             buildResult = autoBuild(imageName: imageName)
             env.IMAGE_TAG = buildResult.imageTag
@@ -147,7 +169,7 @@ EOT
             echo "✅ Built: ${env.FULL_IMAGE}"
         }
 
-        // 9. TRIVY SCANS
+        // 10. TRIVY SCANS
         stage('🔍 Security: Vulnerability Scan (Trivy)') {
             runTrivyScans(
                 imageName: imageName,
@@ -155,20 +177,42 @@ EOT
             )
         }
 
-        // 10. DEPLOY TO K8S
+        // 11. DEPLOY DATABASE (if detected)  ✅ AJOUT
+        if (env.DB_DETECTED == 'true') {
+            stage('🗄️ Deploy Database') {
+                def envVarsMap = [:]
+                if (env.DB_ENV_VARS) {
+                    envVarsMap = new groovy.json.JsonSlurper().parseText(env.DB_ENV_VARS)
+                }
+                
+                dbConfig = deployDatabase(
+                    namespace: namespace,
+                    dbType: env.DB_TYPE,
+                    dbVersion: env.DB_VERSION,
+                    dbPort: env.DB_PORT.toInteger(),
+                    dbEnvVars: envVarsMap,
+                    appName: imageName.replaceAll('[/_]', '-')
+                )
+                
+                echo "✅ Database deployed: ${dbConfig.type} at ${dbConfig.serviceName}:${dbConfig.port}"
+            }
+        }
+
+        // 12. DEPLOY TO K8S  ✅ MODIFIÉ
         stage('🚀 Deploy to Kubernetes') {
             deployToK8s(
                 namespace: namespace,
                 appName: imageName,
                 image: env.FULL_IMAGE,
-                replicas: 2
+                replicas: 2,
+                dbConfig: dbConfig  // ✅ Passer la config DB
             )
             appUrl = getAppUrl(namespace: namespace, appName: imageName)
             env.APP_URL = appUrl
             echo "✅ Deployed to: ${appUrl}"
         }
 
-        // 11. E2E TESTS
+        // 13. E2E TESTS
         if (runE2E) {
             stage('🌐 E2E Tests') {
                 sleep 30
@@ -176,22 +220,32 @@ EOT
             }
         }
 
-        // 12. PERFORMANCE TESTS
+        // 14. PERFORMANCE TESTS
         if (runPerf) {
             stage('⚡ Performance Tests') {
                 runPerfTests(appUrl: appUrl, vus: 10, duration: '30s')
             }
         }
 
-        // 13. ZAP SECURITY SCAN
+        // 15. ZAP SECURITY SCAN
         if (runZAP) {
             stage('🛡️ Security: Web Scan (OWASP ZAP)') {
                 runZAPScan(appUrl: appUrl)
             }
         }
 
-        // 14. FINAL SUMMARY
+        // 16. FINAL SUMMARY  ✅ MODIFIÉ
         stage('📊 Summary') {
+            def dbSummary = ''
+            if (dbConfig.deployed) {
+                dbSummary = """
+Database:
+  Type: ${dbConfig.type}
+  Service: ${dbConfig.serviceName}
+  Port: ${dbConfig.port}
+"""
+            }
+            
             def summary = """
 ========================================
 ✅ CI/CD PIPELINE COMPLETED SUCCESSFULLY
@@ -202,13 +256,14 @@ Framework: ${tech.framework}
 Docker Image: ${env.FULL_IMAGE}
 Deployed to: ${namespace}
 Application URL: ${appUrl}
-
+${dbSummary}
 Tests Executed:
   ✅ Secret Scan (Gitleaks)
   ✅ Unit Tests (${tech.testFramework ?: 'Auto-detected'})
   ✅ Code Quality (SonarQube)
   ✅ Vulnerability Scan (Trivy)
-  ✅ Deployment (Kubernetes)
+${dbConfig.deployed ? '  ✅ Database Deployment (' + dbConfig.type + ')' : '  ⏭️  Database (not detected)'}
+  ✅ Application Deployment (Kubernetes)
 ${runE2E ? '  ✅ E2E Tests' : '  ⏭️  E2E Tests (skipped)'}
 ${runPerf ? '  ✅ Performance Tests' : '  ⏭️  Performance Tests (skipped)'}
 ${runZAP ? '  ✅ Web Security Scan (ZAP)' : '  ⏭️  ZAP Scan (skipped)'}
