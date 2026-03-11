@@ -65,6 +65,22 @@ spec:
         env: ${labels.env}
         team: ${labels.team}
     spec:
+      ${dbConfig.deployed ? """
+      initContainers:
+      - name: wait-for-db
+        image: busybox
+        command:
+          - sh
+          - -c
+          - |
+            echo "⏳ Waiting for DB ${dbConfig.serviceName}:${dbConfig.port}..."
+            until nslookup ${dbConfig.serviceName}.${namespace}.svc.cluster.local >/dev/null 2>&1 && \\
+                  nc -z ${dbConfig.serviceName} ${dbConfig.port}; do
+              echo "Waiting for DB..."
+              sleep 5
+            done
+            echo "✅ DB is ready!"
+      """ : ""}
       containers:
       - name: ${appName}
         image: ${image}
@@ -263,24 +279,4 @@ def detectPort(language) {
     else if (language == "php") return 80
     else if (language == "ruby") return 3000
     else return 8080
-}
-
-// Détecte le chemin du health check selon le langage/framework
-def getHealthCheckPath(language) {
-    if (language == "java-maven" || language == "java-gradle") {
-        // Spring Boot actuator
-        if (fileExists("pom.xml")) {
-            def pom = readFile("pom.xml")
-            if (pom.contains("spring-boot-starter-actuator")) {
-                return "/actuator/health"
-            }
-        }
-        return "/"
-    } else if (language == "nodejs") {
-        return "/health"
-    } else if (language == "python") {
-        return "/health"
-    } else {
-        return "/"
-    }
 }
