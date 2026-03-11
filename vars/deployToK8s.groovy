@@ -73,19 +73,17 @@ spec:
         ports:
         - containerPort: ${port}
         readinessProbe:
-          httpGet:
-            path: ${getHealthCheckPath(language)}
+          tcpSocket:
             port: ${port}
-          initialDelaySeconds: 180
+          initialDelaySeconds: 120
           periodSeconds: 10
-          failureThreshold: 10
+          failureThreshold: 3
         livenessProbe:
-          httpGet:
-            path: ${getHealthCheckPath(language)}
+          tcpSocket:
             port: ${port}
           initialDelaySeconds: 180
           periodSeconds: 30
-          failureThreshold: 10
+          failureThreshold: 3
         resources:
           requests:
             cpu: "100m"
@@ -186,7 +184,6 @@ def generateDatabaseEnv(Map dbConfig, String appName, String namespace) {
           value: "mysql://user:user123@${dbHost}:${dbPort}/${appName}"
 """
             break
-        
         case 'postgresql':
             envVars += """        - name: SPRING_DATASOURCE_URL
           value: "jdbc:postgresql://${dbHost}:${dbPort}/${appName}"
@@ -212,7 +209,6 @@ def generateDatabaseEnv(Map dbConfig, String appName, String namespace) {
           value: "postgres123"
 """
             break
-        
         case 'mongodb':
             envVars += """        - name: SPRING_DATA_MONGODB_URI
           value: "mongodb://root:root123@${dbHost}:${dbPort}/${appName}?authSource=admin"
@@ -230,7 +226,6 @@ def generateDatabaseEnv(Map dbConfig, String appName, String namespace) {
           value: "root123"
 """
             break
-        
         case 'redis':
             envVars += """        - name: SPRING_REDIS_HOST
           value: "${dbHost.split('\\.')[0]}"
@@ -246,7 +241,6 @@ def generateDatabaseEnv(Map dbConfig, String appName, String namespace) {
           value: "${dbPort}"
 """
             break
-        
         default:
             envVars = 'env: []'
     }
@@ -263,8 +257,7 @@ def detectPort(language) {
             if (req.contains("flask")) return 5000
         }
         return 5000
-    }
-    else if (language == "nodejs") return 3000
+    } else if (language == "nodejs") return 3000
     else if (language == "java-maven" || language == "java-gradle") return 8080
     else if (language == "golang") return 8080
     else if (language == "php") return 80
@@ -283,14 +276,11 @@ def getHealthCheckPath(language) {
             }
         }
         return "/"
-    }
-    else if (language == "nodejs") {
+    } else if (language == "nodejs") {
         return "/health"
-    }
-    else if (language == "python") {
+    } else if (language == "python") {
         return "/health"
-    }
-    else {
+    } else {
         return "/"
     }
 }
