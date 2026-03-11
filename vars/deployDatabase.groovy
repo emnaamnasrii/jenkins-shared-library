@@ -32,7 +32,7 @@ def call(Map config = [:]) {
             
             // Attendre que la BD soit prête
             echo "⏳ Waiting for ${dbType} to be ready..."
-            sh "kubectl wait --for=condition=ready pod -l app=${dbName} -n ${namespace} --timeout=3m || echo '${dbType} deployment in progress'"
+            sh "kubectl wait --for=condition=ready pod -l app=${dbName} -n ${namespace} --timeout=5m || echo '${dbType} deployment in progress'"
             
             echo "✅ ${dbType} deployed successfully!"
             echo "   Service: ${dbName}.${namespace}.svc.cluster.local:${dbPort}"
@@ -133,6 +133,8 @@ metadata:
     db-type: ${dbType}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ${dbName}
@@ -244,8 +246,9 @@ def generateReadinessProbe(String dbType, int port) {
             - ping
             - -h
             - localhost
-          initialDelaySeconds: 220
-          periodSeconds: 60"""
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12"""
         
         case 'postgresql':
             return """readinessProbe:
@@ -254,8 +257,9 @@ def generateReadinessProbe(String dbType, int port) {
             - pg_isready
             - -U
             - postgres
-          initialDelaySeconds: 220
-          periodSeconds: 60"""
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12"""
         
         case 'mongodb':
             return """readinessProbe:
@@ -264,8 +268,9 @@ def generateReadinessProbe(String dbType, int port) {
             - mongo
             - --eval
             - "db.adminCommand('ping')"
-          initialDelaySeconds: 220
-          periodSeconds: 60"""
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12"""
         
         case 'redis':
             return """readinessProbe:
@@ -273,14 +278,16 @@ def generateReadinessProbe(String dbType, int port) {
             command:
             - redis-cli
             - ping
-          initialDelaySeconds: 220
-          periodSeconds: 60"""
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 12"""
         
         default:
             return """readinessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 220
-          periodSeconds: 60"""
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12"""
     }
 }
