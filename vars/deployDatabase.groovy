@@ -31,8 +31,28 @@ def call(Map config = [:]) {
             deployGenericDatabase(namespace, dbName, dbType, dbVersion, dbPort, dbEnvVars)
             
             // Attendre que la BD soit prête
-            echo "⏳ Waiting for ${dbType} to be ready..."
-            sh "kubectl wait --for=condition=ready pod -l app=${dbName} -n ${namespace} --timeout=5m || echo '${dbType} deployment in progress'"
+            sh "kubectl apply -f database-deployment.yaml"
+
+            // Attendre que les pods soient créés
+            echo "⏳ Waiting for ${dbType} pods to be created..."
+            sh """
+                # Attendre que le deployment soit créé
+                sleep 5
+                
+                # Attendre que les pods existent
+                for i in \$(seq 1 30); do
+                    POD_COUNT=\$(kubectl get pods -l app=${dbName} -n ${namespace} --no-headers 2>/dev/null | wc -l)
+                    if [ "\$POD_COUNT" -gt 0 ]; then
+                        echo "Pods created, waiting for them to be ready..."
+                        break
+                    fi
+                    echo "Waiting for pods to be created... (attempt \$i/30)"
+                    sleep 2
+                done
+                
+                # Attendre que les pods soient ready
+                kubectl wait --for=condition=ready pod -l app=${dbName} -n ${namespace} --timeout=5m || echo '${dbType} still starting'
+            """
             
             echo "✅ ${dbType} deployed successfully!"
             echo "   Service: ${dbName}.${namespace}.svc.cluster.local:${dbPort}"
@@ -187,6 +207,33 @@ spec:
 """
     
     sh "kubectl apply -f database-deployment.yaml"
+    
+    // Attendre que les pods soient créés et prêts
+    echo "⏳ Waiting for ${dbType} pods to be created..."
+    sh """
+        # Attendre que le deployment soit créé
+        sleep 5
+        
+        # Attendre que les pods existent
+        echo 'Waiting for pods to exist...'
+        for i in \$(seq 1 30); do
+            POD_COUNT=\$(kubectl get pods -l app=${dbName} -n ${namespace} --no-headers 2>/dev/null | wc -l)
+            if [ "\$POD_COUNT" -gt 0 ]; then
+                echo "✓ Pods created (\$POD_COUNT found)"
+                break
+            fi
+            echo "  Attempt \$i/30: No pods yet, waiting..."
+            sleep 2
+        done
+        
+        # Attendre que les pods soient ready
+        echo 'Waiting for pods to be ready...'
+        kubectl wait --for=condition=ready pod -l app=${dbName} -n ${namespace} --timeout=5m || {
+            echo '⚠️  Timeout waiting for pods, checking status...'
+            kubectl get pods -l app=${dbName} -n ${namespace}
+            kubectl describe pod -l app=${dbName} -n ${namespace} | grep -A 10 Events || true
+        }
+    """
 }
 
 def getImageForDatabase(String dbType, String version) {
