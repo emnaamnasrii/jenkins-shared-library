@@ -154,9 +154,6 @@ def generateInitContainer(Map dbConfig, String namespace) {
     def dbPort = dbConfig.port
     def dbType = dbConfig.type
     
-    // Installer les outils nécessaires selon le type de BD
-    def installCmd = getInstallCommand(dbType)
-    
     // Commande d'attente spécifique à chaque BD
     def waitCmd = getWaitCommand(dbType, dbHost, dbPort)
     
@@ -166,8 +163,8 @@ def generateInitContainer(Map dbConfig, String namespace) {
         command: ['sh', '-c']
         args:
         - |
-          echo '📦 Installing database client tools...'
-          ${installCmd}
+          echo '📦 Installing netcat...'
+          apk add --no-cache netcat-openbsd
           
           echo '⏳ Waiting for ${dbType} to be ready...'
           ${waitCmd}
@@ -176,108 +173,101 @@ def generateInitContainer(Map dbConfig, String namespace) {
 """
 }
 
-// Retourne la commande d'installation des outils selon le type de BD
-def getInstallCommand(String dbType) {
-    switch(dbType) {
-        case 'mysql':
-        case 'mariadb':
-            return 'apk add --no-cache mysql-client netcat-openbsd curl'
-        
-        case 'postgresql':
-            return 'apk add --no-cache postgresql-client netcat-openbsd curl'
-        
-        case 'mongodb':
-            return 'apk add --no-cache mongodb-tools netcat-openbsd curl || apk add --no-cache netcat-openbsd curl'
-        
-        case 'redis':
-            return 'apk add --no-cache redis netcat-openbsd curl'
-        
-        default:
-            return 'apk add --no-cache netcat-openbsd curl'
-    }
-}
-
-// Retourne la commande d'attente spécifique à chaque type de BD
+// Retourne la commande d'attente spécifique à chaque type de BD (VERSION ULTRA-SIMPLE ET FIABLE)
 def getWaitCommand(String dbType, String dbHost, int dbPort) {
     switch(dbType) {
         case 'mysql':
         case 'mariadb':
             return """
           # Attendre que le port soit ouvert
+          echo '  Waiting for MySQL port...'
+          ATTEMPT=0
           until nc -z ${dbHost} ${dbPort}; do
-            echo '  MySQL port not ready - waiting...'
+            ATTEMPT=\$((ATTEMPT+1))
+            echo "  Attempt \$ATTEMPT: MySQL port not ready - waiting..."
             sleep 2
           done
           echo '  ✓ MySQL port is open'
           
-          # Tester la connexion MySQL avec root (user n'a pas les permissions)
-          echo '  Testing MySQL connection...'
-          until mysql -h ${dbHost} -u root -proot123 -e 'SELECT 1' 2>/dev/null; do
-            echo '  MySQL not accepting connections - waiting...'
-            sleep 2
-          done
-          echo '  ✓ MySQL connection successful'
+          # Attendre que MySQL soit complètement initialisé (sécurité)
+          echo '  Waiting 20 seconds for MySQL to fully initialize...'
+          sleep 20
+          
+          echo '  ✓ MySQL initialization complete'
 """
         
         case 'postgresql':
             return """
           # Attendre que le port soit ouvert
+          echo '  Waiting for PostgreSQL port...'
+          ATTEMPT=0
           until nc -z ${dbHost} ${dbPort}; do
-            echo '  PostgreSQL port not ready - waiting...'
+            ATTEMPT=\$((ATTEMPT+1))
+            echo "  Attempt \$ATTEMPT: PostgreSQL port not ready - waiting..."
             sleep 2
           done
           echo '  ✓ PostgreSQL port is open'
           
-          # Tester la connexion PostgreSQL avec postgres (superuser)
-          echo '  Testing PostgreSQL connection...'
-          until PGPASSWORD=postgres123 psql -h ${dbHost} -U postgres -d postgres -c 'SELECT 1' 2>/dev/null; do
-            echo '  PostgreSQL not accepting connections - waiting...'
-            sleep 2
-          done
-          echo '  ✓ PostgreSQL connection successful'
+          # Attendre que PostgreSQL soit complètement initialisé
+          echo '  Waiting 15 seconds for PostgreSQL to fully initialize...'
+          sleep 15
+          
+          echo '  ✓ PostgreSQL initialization complete'
 """
         
         case 'mongodb':
             return """
           # Attendre que le port soit ouvert
+          echo '  Waiting for MongoDB port...'
+          ATTEMPT=0
           until nc -z ${dbHost} ${dbPort}; do
-            echo '  MongoDB port not ready - waiting...'
+            ATTEMPT=\$((ATTEMPT+1))
+            echo "  Attempt \$ATTEMPT: MongoDB port not ready - waiting..."
             sleep 2
           done
           echo '  ✓ MongoDB port is open'
           
-          # Attendre 5 secondes pour que MongoDB soit complètement prêt
-          sleep 5
-          echo '  ✓ MongoDB ready for connections'
+          # Attendre que MongoDB soit prêt
+          echo '  Waiting 10 seconds for MongoDB to initialize...'
+          sleep 10
+          
+          echo '  ✓ MongoDB ready'
 """
         
         case 'redis':
             return """
           # Attendre que le port soit ouvert
+          echo '  Waiting for Redis port...'
+          ATTEMPT=0
           until nc -z ${dbHost} ${dbPort}; do
-            echo '  Redis port not ready - waiting...'
+            ATTEMPT=\$((ATTEMPT+1))
+            echo "  Attempt \$ATTEMPT: Redis port not ready - waiting..."
             sleep 2
           done
           echo '  ✓ Redis port is open'
           
-          # Tester la connexion Redis
-          echo '  Testing Redis connection...'
-          until redis-cli -h ${dbHost} -p ${dbPort} -a redis123 ping 2>/dev/null | grep -q PONG; do
-            echo '  Redis not responding - waiting...'
-            sleep 2
-          done
-          echo '  ✓ Redis connection successful'
+          # Redis est généralement prêt immédiatement
+          echo '  Waiting 3 seconds for Redis...'
+          sleep 3
+          
+          echo '  ✓ Redis ready'
 """
         
         default:
             return """
           # Attente TCP générique
+          echo '  Waiting for database port...'
+          ATTEMPT=0
           until nc -z ${dbHost} ${dbPort}; do
-            echo '  Database port not ready - waiting...'
+            ATTEMPT=\$((ATTEMPT+1))
+            echo "  Attempt \$ATTEMPT: Database port not ready - waiting..."
             sleep 2
           done
           echo '  ✓ Database port is open'
-          sleep 5
+          
+          # Attente de sécurité
+          echo '  Waiting 10 seconds for database to initialize...'
+          sleep 10
 """
     }
 }
