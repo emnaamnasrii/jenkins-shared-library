@@ -202,7 +202,7 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
     // Variables spécifiques Java (Spring Boot)
     if (language == 'java-maven' || language == 'java-gradle') {
         env += """        - name: SPRING_DATASOURCE_URL
-          value: "jdbc:mysql://${dbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=30000&socketTimeout=60000"
+          value: "jdbc:mysql://${dbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
         - name: SPRING_DATASOURCE_USERNAME
           value: "user"
         - name: SPRING_DATASOURCE_PASSWORD
@@ -213,10 +213,6 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
           value: "org.hibernate.dialect.MySQL8Dialect"
         - name: SPRING_JPA_SHOW_SQL
           value: "false"
-        - name: SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT
-          value: "60000"
-        - name: SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT
-          value: "60000"
 """
     }
     
