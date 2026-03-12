@@ -210,9 +210,9 @@ def getWaitCommand(String dbType, String dbHost, int dbPort) {
           done
           echo '  ✓ MySQL port is open'
           
-          # Tester la connexion MySQL
+          # Tester la connexion MySQL avec root (user n'a pas les permissions)
           echo '  Testing MySQL connection...'
-          until mysql -h ${dbHost} -u user -puser123 -e 'SELECT 1' 2>/dev/null; do
+          until mysql -h ${dbHost} -u root -proot123 -e 'SELECT 1' 2>/dev/null; do
             echo '  MySQL not accepting connections - waiting...'
             sleep 2
           done
@@ -228,9 +228,9 @@ def getWaitCommand(String dbType, String dbHost, int dbPort) {
           done
           echo '  ✓ PostgreSQL port is open'
           
-          # Tester la connexion PostgreSQL
+          # Tester la connexion PostgreSQL avec postgres (superuser)
           echo '  Testing PostgreSQL connection...'
-          until PGPASSWORD=postgres123 psql -h ${dbHost} -U user -d postgres -c 'SELECT 1' 2>/dev/null; do
+          until PGPASSWORD=postgres123 psql -h ${dbHost} -U postgres -d postgres -c 'SELECT 1' 2>/dev/null; do
             echo '  PostgreSQL not accepting connections - waiting...'
             sleep 2
           done
@@ -246,7 +246,7 @@ def getWaitCommand(String dbType, String dbHost, int dbPort) {
           done
           echo '  ✓ MongoDB port is open'
           
-          # Tester la connexion MongoDB (simple ping TCP suffit)
+          # Attendre 5 secondes pour que MongoDB soit complètement prêt
           sleep 5
           echo '  ✓ MongoDB ready for connections'
 """
