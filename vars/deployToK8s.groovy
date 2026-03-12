@@ -65,7 +65,6 @@ spec:
         env: ${labels.env}
         team: ${labels.team}
     spec:
-${dbConfig.deployed ? generateInitContainer(dbConfig, namespace) : ''}
       containers:
       - name: ${appName}
         image: ${image}
@@ -76,15 +75,15 @@ ${dbConfig.deployed ? generateInitContainer(dbConfig, namespace) : ''}
         readinessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 120
+          initialDelaySeconds: 180
           periodSeconds: 10
-          failureThreshold: 3
+          failureThreshold: 10
         livenessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 180
+          initialDelaySeconds: 240
           periodSeconds: 30
-          failureThreshold: 3
+          failureThreshold: 5
         resources:
           requests:
             cpu: "100m"
@@ -117,7 +116,7 @@ spec:
 
             // Attendre rollout
             echo "⏳ Waiting for deployment to complete..."
-            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=5m || echo 'Deployment in progress'"
+            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=10m || echo 'Deployment in progress'"
 
             // Obtenir node IP et nodePort
             def nodeIP = sh(
@@ -141,134 +140,6 @@ spec:
             echo "URL: http://${nodeIP}:${nodePort}"
             echo "========================================="
         }
-    }
-}
-
-// Génère l'initContainer GÉNÉRIQUE pour TOUTES les bases de données
-def generateInitContainer(Map dbConfig, String namespace) {
-    if (!dbConfig.deployed) {
-        return ''
-    }
-    
-    def dbHost = dbConfig.serviceName
-    def dbPort = dbConfig.port
-    def dbType = dbConfig.type
-    
-    // Commande d'attente spécifique à chaque BD
-    def waitCmd = getWaitCommand(dbType, dbHost, dbPort)
-    
-    return """      initContainers:
-      - name: wait-for-db
-        image: alpine:3.18
-        command: ['sh', '-c']
-        args:
-        - |
-          echo '📦 Installing netcat...'
-          apk add --no-cache netcat-openbsd
-          
-          echo '⏳ Waiting for ${dbType} to be ready...'
-          ${waitCmd}
-          
-          echo '✅ ${dbType} is fully ready! Starting application...'
-"""
-}
-
-// Retourne la commande d'attente spécifique à chaque type de BD (VERSION ULTRA-SIMPLE ET FIABLE)
-def getWaitCommand(String dbType, String dbHost, int dbPort) {
-    switch(dbType) {
-        case 'mysql':
-        case 'mariadb':
-            return """
-          # Attendre que le port soit ouvert
-          echo '  Waiting for MySQL port...'
-          ATTEMPT=0
-          until nc -z ${dbHost} ${dbPort}; do
-            ATTEMPT=\$((ATTEMPT+1))
-            echo "  Attempt \$ATTEMPT: MySQL port not ready - waiting..."
-            sleep 2
-          done
-          echo '  ✓ MySQL port is open'
-          
-          # Attendre que MySQL soit complètement initialisé (sécurité)
-          echo '  Waiting 20 seconds for MySQL to fully initialize...'
-          sleep 20
-          
-          echo '  ✓ MySQL initialization complete'
-"""
-        
-        case 'postgresql':
-            return """
-          # Attendre que le port soit ouvert
-          echo '  Waiting for PostgreSQL port...'
-          ATTEMPT=0
-          until nc -z ${dbHost} ${dbPort}; do
-            ATTEMPT=\$((ATTEMPT+1))
-            echo "  Attempt \$ATTEMPT: PostgreSQL port not ready - waiting..."
-            sleep 2
-          done
-          echo '  ✓ PostgreSQL port is open'
-          
-          # Attendre que PostgreSQL soit complètement initialisé
-          echo '  Waiting 15 seconds for PostgreSQL to fully initialize...'
-          sleep 15
-          
-          echo '  ✓ PostgreSQL initialization complete'
-"""
-        
-        case 'mongodb':
-            return """
-          # Attendre que le port soit ouvert
-          echo '  Waiting for MongoDB port...'
-          ATTEMPT=0
-          until nc -z ${dbHost} ${dbPort}; do
-            ATTEMPT=\$((ATTEMPT+1))
-            echo "  Attempt \$ATTEMPT: MongoDB port not ready - waiting..."
-            sleep 2
-          done
-          echo '  ✓ MongoDB port is open'
-          
-          # Attendre que MongoDB soit prêt
-          echo '  Waiting 10 seconds for MongoDB to initialize...'
-          sleep 10
-          
-          echo '  ✓ MongoDB ready'
-"""
-        
-        case 'redis':
-            return """
-          # Attendre que le port soit ouvert
-          echo '  Waiting for Redis port...'
-          ATTEMPT=0
-          until nc -z ${dbHost} ${dbPort}; do
-            ATTEMPT=\$((ATTEMPT+1))
-            echo "  Attempt \$ATTEMPT: Redis port not ready - waiting..."
-            sleep 2
-          done
-          echo '  ✓ Redis port is open'
-          
-          # Redis est généralement prêt immédiatement
-          echo '  Waiting 3 seconds for Redis...'
-          sleep 3
-          
-          echo '  ✓ Redis ready'
-"""
-        
-        default:
-            return """
-          # Attente TCP générique
-          echo '  Waiting for database port...'
-          ATTEMPT=0
-          until nc -z ${dbHost} ${dbPort}; do
-            ATTEMPT=\$((ATTEMPT+1))
-            echo "  Attempt \$ATTEMPT: Database port not ready - waiting..."
-            sleep 2
-          done
-          echo '  ✓ Database port is open'
-          
-          # Attente de sécurité
-          echo '  Waiting 10 seconds for database to initialize...'
-          sleep 10
-"""
     }
 }
 
@@ -331,7 +202,7 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
     // Variables spécifiques Java (Spring Boot)
     if (language == 'java-maven' || language == 'java-gradle') {
         env += """        - name: SPRING_DATASOURCE_URL
-          value: "jdbc:mysql://${dbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+          value: "jdbc:mysql://${dbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=30000&socketTimeout=60000"
         - name: SPRING_DATASOURCE_USERNAME
           value: "user"
         - name: SPRING_DATASOURCE_PASSWORD
@@ -342,6 +213,10 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
           value: "org.hibernate.dialect.MySQL8Dialect"
         - name: SPRING_JPA_SHOW_SQL
           value: "false"
+        - name: SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT
+          value: "60000"
+        - name: SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT
+          value: "60000"
 """
     }
     
