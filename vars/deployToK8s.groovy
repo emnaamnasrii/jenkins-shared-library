@@ -4,7 +4,7 @@ def call(Map config = [:]) {
     def namespace = config.namespace ?: 'dev'
     def appName = config.appName ?: env.JOB_NAME.toLowerCase().replaceAll('/', '-')
     def image = config.image
-    def replicas = config.replicas ?: 1  // ⬅️ CHANGÉ DE 2 À 1
+    def replicas = config.replicas ?: 2
     def dbConfig = config.dbConfig ?: [deployed: false]
 
     appName = appName.replaceAll('[/_]', '-').toLowerCase()
@@ -29,7 +29,7 @@ def call(Map config = [:]) {
     }
     echo "Language: ${language}"
     echo "Detected Port: ${port}"
-    echo "Replicas: ${replicas}"  // ⬅️ AJOUTÉ
+    echo "Replicas: ${replicas}"
     echo "========================================="
 
     container('kubectl') {
@@ -48,6 +48,11 @@ metadata:
     team: ${labels.team}
 spec:
   replicas: ${replicas}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: ${labels.app}
@@ -70,13 +75,17 @@ spec:
             port: ${port}
           initialDelaySeconds: 180
           periodSeconds: 10
-          failureThreshold: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30
         livenessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 240
+          initialDelaySeconds: 300
           periodSeconds: 30
-          failureThreshold: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 10
         resources:
           requests:
             cpu: "100m"
@@ -106,8 +115,18 @@ spec:
 
             sh "kubectl apply -f deployment.yaml"
 
-            echo "⏳ Waiting for deployment to complete..."
-            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=10m || echo 'Deployment in progress'"
+            echo "⏳ Waiting for at least 1 pod to be ready..."
+            sh """
+            for i in \$(seq 1 180); do
+              READY=\$(kubectl get deployment ${appName} -n ${namespace} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0')
+              if [ "\$READY" -ge "1" ]; then
+                echo "✅ At least 1 pod is ready (\$READY/${replicas})"
+                break
+              fi
+              echo "  Waiting... (\$i/60) - Ready pods: \$READY/${replicas}"
+              sleep 5
+            done
+            """
 
             def nodeIP = sh(
                 script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'",
@@ -119,6 +138,11 @@ spec:
                 returnStdout: true
             ).trim()
 
+            def readyPods = sh(
+                script: "kubectl get deployment ${appName} -n ${namespace} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0'",
+                returnStdout: true
+            ).trim()
+
             echo "========================================="
             echo "✅ Deployment successful!"
             echo "Application: ${appName}"
@@ -127,8 +151,13 @@ spec:
             if (dbConfig.deployed) {
                 echo "Database: ${dbConfig.type}"
             }
+            echo "Ready Pods: ${readyPods}/${replicas}"
             echo "URL: http://${nodeIP}:${nodePort}"
             echo "========================================="
+            
+            if (readyPods.toInteger() < replicas.toInteger()) {
+                echo "⚠️  Warning: Only ${readyPods}/${replicas} pods are ready, but service is operational!"
+            }
         }
     }
 }
