@@ -4,7 +4,7 @@ def call(Map config = [:]) {
     def namespace = config.namespace ?: 'dev'
     def appName = config.appName ?: env.JOB_NAME.toLowerCase().replaceAll('/', '-')
     def image = config.image
-    def replicas = config.replicas ?: 2
+    def replicas = config.replicas ?: 1  // ⬅️ CHANGÉ DE 2 À 1
     def dbConfig = config.dbConfig ?: [deployed: false]
 
     appName = appName.replaceAll('[/_]', '-').toLowerCase()
@@ -29,33 +29,12 @@ def call(Map config = [:]) {
     }
     echo "Language: ${language}"
     echo "Detected Port: ${port}"
+    echo "Replicas: ${replicas}"  // ⬅️ AJOUTÉ
     echo "========================================="
 
     container('kubectl') {
         withKubeConfig([credentialsId: 'kubeconfig']) {
             sh "kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -"
-
-            // Générer initContainer DNS si base de données déployée
-            def initContainerYaml = ''
-            if (dbConfig.deployed) {
-                def shortDbHost = dbConfig.serviceName.contains('.') ? dbConfig.serviceName.split('\\.')[0] : dbConfig.serviceName
-                initContainerYaml = """      initContainers:
-      - name: wait-for-dns
-        image: busybox:1.36
-        command: ['sh', '-c']
-        args:
-        - |
-          echo '⏳ Waiting for DNS to be ready...'
-          DB_HOST="${shortDbHost}"
-          until nslookup \$DB_HOST > /dev/null 2>&1; do
-            echo "  DNS lookup for \$DB_HOST failed, retrying..."
-            sleep 2
-          done
-          echo "✅ DNS resolved for \$DB_HOST"
-          sleep 5
-          echo "🚀 Starting application..."
-"""
-            }
 
             writeFile file: 'deployment.yaml', text: """
 apiVersion: apps/v1
@@ -69,11 +48,6 @@ metadata:
     team: ${labels.team}
 spec:
   replicas: ${replicas}
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
       app: ${labels.app}
@@ -84,7 +58,7 @@ spec:
         env: ${labels.env}
         team: ${labels.team}
     spec:
-${initContainerYaml}      containers:
+      containers:
       - name: ${appName}
         image: ${image}
         imagePullPolicy: Always
@@ -94,19 +68,15 @@ ${initContainerYaml}      containers:
         readinessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 300
-          periodSeconds: 15
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 20
+          initialDelaySeconds: 180
+          periodSeconds: 10
+          failureThreshold: 10
         livenessProbe:
           tcpSocket:
             port: ${port}
-          initialDelaySeconds: 360
+          initialDelaySeconds: 240
           periodSeconds: 30
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 10
+          failureThreshold: 5
         resources:
           requests:
             cpu: "100m"
@@ -137,7 +107,7 @@ spec:
             sh "kubectl apply -f deployment.yaml"
 
             echo "⏳ Waiting for deployment to complete..."
-            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=15m || echo 'Deployment in progress'"
+            sh "kubectl rollout status deployment/${appName} -n ${namespace} --timeout=10m || echo 'Deployment in progress'"
 
             def nodeIP = sh(
                 script: "kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'",
