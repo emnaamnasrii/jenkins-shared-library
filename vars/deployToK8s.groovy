@@ -35,6 +35,28 @@ def call(Map config = [:]) {
         withKubeConfig([credentialsId: 'kubeconfig']) {
             sh "kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -"
 
+            // Générer initContainer DNS si base de données déployée
+            def initContainerYaml = ''
+            if (dbConfig.deployed) {
+                def shortDbHost = dbConfig.serviceName.contains('.') ? dbConfig.serviceName.split('\\.')[0] : dbConfig.serviceName
+                initContainerYaml = """      initContainers:
+      - name: wait-for-dns
+        image: busybox:1.36
+        command: ['sh', '-c']
+        args:
+        - |
+          echo '⏳ Waiting for DNS to be ready...'
+          DB_HOST="${shortDbHost}"
+          until nslookup \$DB_HOST > /dev/null 2>&1; do
+            echo "  DNS lookup for \$DB_HOST failed, retrying..."
+            sleep 2
+          done
+          echo "✅ DNS resolved for \$DB_HOST"
+          sleep 5
+          echo "🚀 Starting application..."
+"""
+            }
+
             writeFile file: 'deployment.yaml', text: """
 apiVersion: apps/v1
 kind: Deployment
@@ -62,7 +84,7 @@ spec:
         env: ${labels.env}
         team: ${labels.team}
     spec:
-      containers:
+${initContainerYaml}      containers:
       - name: ${appName}
         image: ${image}
         imagePullPolicy: Always
