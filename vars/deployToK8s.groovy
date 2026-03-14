@@ -1,4 +1,12 @@
 #!/usr/bin/env groovy
+// ─────────────────────────────────────────────────────────────────────────────
+// CORRECTIONS APPLIQUÉES :
+// 1. Service type: LoadBalancer (MetalLB) — accessible depuis tout le LAN
+// 2. DNS complet pour la DB — suppression du shortDbHost qui cassait la résolution
+// 3. Fix READY vide → ${READY:-0} — évite "sh: out of range"
+// 4. Fix readyPods vide → valeur par défaut '0' — évite "For input string: ''"
+// 5. Fix externalIP vide → valeur par défaut 'pending'
+// ─────────────────────────────────────────────────────────────────────────────
 
 def call(Map config = [:]) {
     def namespace  = config.namespace  ?: 'dev'
@@ -107,6 +115,7 @@ metadata:
     env: ${labels.env}
     team: ${labels.team}
 spec:
+  # FIX 1 : LoadBalancer — MetalLB assigne une IP accessible depuis tout le LAN
   type: LoadBalancer
   selector:
     app: ${labels.app}
@@ -124,7 +133,8 @@ spec:
             sh """
 for i in \$(seq 1 60); do
   READY=\$(kubectl get deployment ${appName} -n ${namespace} \\
-            -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0')
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0')
+  READY=\${READY:-0}
   if [ "\$READY" -ge "1" ]; then
     echo "✅ At least 1 pod is ready (\$READY/${replicas})"
     break
@@ -140,6 +150,7 @@ done
 for i in \$(seq 1 30); do
   EXTERNAL_IP=\$(kubectl get svc ${appName} -n ${namespace} \\
     -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo '')
+  EXTERNAL_IP=\${EXTERNAL_IP:-}
   if [ -n "\$EXTERNAL_IP" ] && [ "\$EXTERNAL_IP" != "null" ]; then
     echo "✅ External IP assigned: \$EXTERNAL_IP"
     break
@@ -150,17 +161,21 @@ done
 """
 
             // ── Récupérer les infos finales ────────────────────────────
+            // FIX 4 : valeur par défaut pour éviter "For input string: ''"
             def externalIP = sh(
                 script: """kubectl get svc ${appName} -n ${namespace} \\
                            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo 'pending'""",
                 returnStdout: true
             ).trim()
+            if (!externalIP || externalIP == '') externalIP = 'pending'
 
+            // FIX 5 : valeur par défaut pour éviter "For input string: ''"
             def readyPods = sh(
                 script: """kubectl get deployment ${appName} -n ${namespace} \\
                            -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0'""",
                 returnStdout: true
             ).trim()
+            if (!readyPods || readyPods == '') readyPods = '0'
 
             echo "========================================="
             echo "✅ Deployment successful!"
@@ -185,15 +200,19 @@ done
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Database env helpers
+// FIX 2 : suppression de shortDbHost — on garde le nom DNS complet
+//         ex: emnamnasrii-test-app-db.dev.svc.cluster.local
+//         Le nom court "emnamnasrii-test-app-db" seul ne se résout pas
+//         dans Kubernetes quand les pods sont sur des nœuds différents
 // ─────────────────────────────────────────────────────────────────────────────
 
 def generateDatabaseEnv(Map dbConfig, String appName, String namespace, String language) {
     if (!dbConfig.deployed) return 'env: []'
 
-    def dbHost   = dbConfig.serviceName
-    def dbPort   = dbConfig.port
-    def dbType   = dbConfig.type
-    def envVars  = 'env:\n'
+    def dbHost  = dbConfig.serviceName
+    def dbPort  = dbConfig.port
+    def dbType  = dbConfig.type
+    def envVars = 'env:\n'
 
     switch (dbType) {
         case 'mysql':
@@ -216,10 +235,9 @@ def generateDatabaseEnv(Map dbConfig, String appName, String namespace, String l
 }
 
 def generateMySQLEnv(String dbHost, int dbPort, String appName, String language) {
-    def shortDbHost = dbHost.contains('.') ? dbHost.split('\\.')[0] : dbHost
     def env = """
           - name: DB_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: DB_PORT
             value: "${dbPort}"
           - name: DB_NAME
@@ -229,12 +247,12 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
           - name: DB_PASSWORD
             value: "user123"
           - name: DATABASE_URL
-            value: "mysql://user:user123@${shortDbHost}:${dbPort}/${appName}"
+            value: "mysql://user:user123@${dbHost}:${dbPort}/${appName}"
 """
     if (language in ['java-maven', 'java-gradle']) {
         env += """
           - name: SPRING_DATASOURCE_URL
-            value: "jdbc:mysql://${shortDbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+            value: "jdbc:mysql://${dbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
           - name: SPRING_DATASOURCE_USERNAME
             value: "user"
           - name: SPRING_DATASOURCE_PASSWORD
@@ -250,7 +268,7 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
     if (language == 'python') {
         env += """
           - name: MYSQL_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: MYSQL_PORT
             value: "${dbPort}"
           - name: MYSQL_DATABASE
@@ -260,13 +278,13 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
           - name: MYSQL_PASSWORD
             value: "user123"
           - name: SQLALCHEMY_DATABASE_URI
-            value: "mysql+pymysql://user:user123@${shortDbHost}:${dbPort}/${appName}"
+            value: "mysql+pymysql://user:user123@${dbHost}:${dbPort}/${appName}"
 """
     }
     if (language == 'nodejs') {
         env += """
           - name: MYSQL_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: MYSQL_PORT
             value: "${dbPort}"
           - name: MYSQL_DATABASE
@@ -281,10 +299,9 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
 }
 
 def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String language) {
-    def shortDbHost = dbHost.contains('.') ? dbHost.split('\\.')[0] : dbHost
     def env = """
           - name: DB_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: DB_PORT
             value: "${dbPort}"
           - name: DB_NAME
@@ -294,12 +311,12 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
           - name: DB_PASSWORD
             value: "postgres123"
           - name: DATABASE_URL
-            value: "postgresql://user:postgres123@${shortDbHost}:${dbPort}/${appName}"
+            value: "postgresql://user:postgres123@${dbHost}:${dbPort}/${appName}"
 """
     if (language in ['java-maven', 'java-gradle']) {
         env += """
           - name: SPRING_DATASOURCE_URL
-            value: "jdbc:postgresql://${shortDbHost}:${dbPort}/${appName}"
+            value: "jdbc:postgresql://${dbHost}:${dbPort}/${appName}"
           - name: SPRING_DATASOURCE_USERNAME
             value: "user"
           - name: SPRING_DATASOURCE_PASSWORD
@@ -313,7 +330,7 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
     if (language == 'python') {
         env += """
           - name: POSTGRES_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: POSTGRES_PORT
             value: "${dbPort}"
           - name: POSTGRES_DB
@@ -323,13 +340,13 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
           - name: POSTGRES_PASSWORD
             value: "postgres123"
           - name: SQLALCHEMY_DATABASE_URI
-            value: "postgresql://user:postgres123@${shortDbHost}:${dbPort}/${appName}"
+            value: "postgresql://user:postgres123@${dbHost}:${dbPort}/${appName}"
 """
     }
     if (language == 'nodejs') {
         env += """
           - name: PGHOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: PGPORT
             value: "${dbPort}"
           - name: PGDATABASE
@@ -344,11 +361,10 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
 }
 
 def generateMongoDBEnv(String dbHost, int dbPort, String appName, String language) {
-    def shortDbHost = dbHost.contains('.') ? dbHost.split('\\.')[0] : dbHost
-    def mongoUri = "mongodb://root:root123@${shortDbHost}:${dbPort}/${appName}?authSource=admin"
+    def mongoUri = "mongodb://root:root123@${dbHost}:${dbPort}/${appName}?authSource=admin"
     def env = """
           - name: MONGO_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: MONGO_PORT
             value: "${dbPort}"
           - name: MONGO_DATABASE
@@ -378,21 +394,20 @@ def generateMongoDBEnv(String dbHost, int dbPort, String appName, String languag
 }
 
 def generateRedisEnv(String dbHost, int dbPort, String language) {
-    def shortDbHost = dbHost.contains('.') ? dbHost.split('\\.')[0] : dbHost
     def env = """
           - name: REDIS_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: REDIS_PORT
             value: "${dbPort}"
           - name: REDIS_PASSWORD
             value: "redis123"
           - name: REDIS_URL
-            value: "redis://:redis123@${shortDbHost}:${dbPort}/0"
+            value: "redis://:redis123@${dbHost}:${dbPort}/0"
 """
     if (language in ['java-maven', 'java-gradle']) {
         env += """
           - name: SPRING_REDIS_HOST
-            value: "${shortDbHost}"
+            value: "${dbHost}"
           - name: SPRING_REDIS_PORT
             value: "${dbPort}"
           - name: SPRING_REDIS_PASSWORD
