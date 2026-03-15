@@ -4,18 +4,28 @@ def call(String language) {
 
     def yaml = ""
 
-    if (language == 'python') {
+    // ─────────────────────────────────────────────────────────────────────────
+    // Containers communs à TOUS les langages :
+    //   - python   : tests E2E API (pytest + requests)
+    //   - selenium : tests E2E Frontend (Firefox headless)
+    //   - docker   : build & push image
+    //   - scanner  : SonarQube
+    //   - trivy    : scan sécurité
+    //   - kubectl  : déploiement Kubernetes
+    // ─────────────────────────────────────────────────────────────────────────
 
-        yaml = '''
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins-deployer
-
-  containers:
+    def commonContainers = '''
   - name: python
     image: python:3.11-slim
     command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
     tty: true
 
   - name: docker
@@ -31,7 +41,63 @@ spec:
     image: sonarsource/sonar-scanner-cli:latest
     command: ['cat']
     tty: true
-    
+
+  - name: trivy
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+
+  - name: kubectl
+    image: lachlanevenson/k8s-kubectl:latest
+    command: ['sh']
+    args: ['-c', 'while true; do sleep 1000; done']
+    tty: true
+'''
+
+    def volumes = '''
+  volumes:
+  - name: docker-sock
+    emptyDir: {}
+'''
+
+    def header = '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-deployer
+
+  containers:
+'''
+
+    if (language == 'python') {
+
+        yaml = header + '''  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+''' + '''
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+    tty: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run
+
+  - name: scanner
+    image: sonarsource/sonar-scanner-cli:latest
+    command: ['cat']
+    tty: true
+
   - name: trivy
     image: aquasec/trivy:latest
     command: ['cat']
@@ -64,6 +130,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -85,7 +164,7 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
+    command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
@@ -110,6 +189,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -131,8 +223,8 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
-    args: ['-c', 'while true; do sleep 1000; done'] 
+    command: ['sh']
+    args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
   volumes:
@@ -156,6 +248,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -177,7 +282,7 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
+    command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
@@ -202,6 +307,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -223,7 +341,7 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
+    command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
@@ -248,6 +366,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -269,7 +400,7 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
+    command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
@@ -294,6 +425,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -315,7 +459,7 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
+    command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
@@ -340,6 +484,19 @@ spec:
     command: ['cat']
     tty: true
 
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    shm_size: '2g'
+    tty: true
+
   - name: docker
     image: docker:24-dind
     securityContext:
@@ -356,7 +513,7 @@ spec:
 
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
-    command: ['sh']                 # <-- shell intéractif
+    command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
 
@@ -364,6 +521,7 @@ spec:
   - name: docker-sock
     emptyDir: {}
 '''
+
     }
 
     return yaml

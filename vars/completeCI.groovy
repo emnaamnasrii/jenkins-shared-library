@@ -208,13 +208,17 @@ if (env.DB_DETECTED == 'true') {
             echo "✅ Deployed to: ${appUrl}"
         }
 
-        // 13. E2E TESTS
-        if (runE2E) {
-            stage('🌐 E2E Tests') {
-                sleep 30
-                runE2ETests(appUrl: appUrl)
-            }
-        }
+      // 13. E2E TESTS
+if (runE2E) {
+    stage('🌐 E2E Tests') {
+        sleep 30
+        def hasFrontend = detectFrontend()
+        runE2ETests(
+            appUrl: appUrl,
+            hasFrontend: hasFrontend
+        )
+    }
+}
 
         // 14. PERFORMANCE TESTS
         if (runPerf) {
