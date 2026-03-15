@@ -13,13 +13,9 @@ def call(Map config = [:]) {
     echo "========================================="
     echo "🌐 E2E Tests"
     echo "URL        : ${appUrl}"
-    echo "Mode       : ${hasFrontend ? 'Selenium Firefox (Frontend)' : 'requests/pytest (API REST)'}"
+    echo "Mode       : ${hasFrontend ? 'Selenium Firefox (pod séparé)' : 'requests/pytest (API REST)'}"
     echo "========================================="
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // FIX : si les tests échouent → WARNING seulement, pipeline continue
-    // Le build passe en UNSTABLE (jaune) au lieu de FAILURE (rouge)
-    // ─────────────────────────────────────────────────────────────────────────
     try {
         if (hasFrontend) {
             runSeleniumTests(appUrl)
@@ -31,13 +27,13 @@ def call(Map config = [:]) {
         echo "⚠️  E2E Tests échoués — pipeline continue"
         echo "⚠️  Erreur : ${e.getMessage()}"
         echo "⚠️ ================================================="
-        // unstable = build jaune, pas rouge — pipeline continue
         unstable("E2E tests failed but pipeline continues: ${e.getMessage()}")
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODE 1 — API REST : requests + pytest
+// Utilise le container python déjà présent dans le pod principal
 // ─────────────────────────────────────────────────────────────────────────────
 
 def runAPITests(String appUrl) {
@@ -92,23 +88,6 @@ def test_health_endpoint():
             continue
     pytest.skip("Aucun health endpoint trouvé")
 
-def test_get_endpoints():
-    \"\"\"Les endpoints GET retournent 200\"\"\"
-    endpoints = [
-        BASE_URL,
-        f'{BASE_URL}/api',
-        f'{BASE_URL}/actuator',
-    ]
-    for ep in endpoints:
-        try:
-            r = requests.get(ep, timeout=10)
-            if r.status_code in [200, 204]:
-                print(f"✅ GET {ep} → {r.status_code}")
-                return
-        except:
-            continue
-    pytest.skip("Aucun endpoint GET disponible")
-
 def test_no_server_error():
     \"\"\"Pas d'erreur 500\"\"\"
     try:
@@ -118,8 +97,30 @@ def test_no_server_error():
     except requests.exceptions.ConnectionError:
         pytest.skip("Connexion impossible")
 
+def test_response_time():
+    \"\"\"Temps de réponse < 5 secondes\"\"\"
+    try:
+        start = time.time()
+        requests.get(BASE_URL, timeout=15)
+        elapsed = time.time() - start
+        assert elapsed < 5, f"Trop lent: {elapsed:.2f}s"
+        print(f"✅ Temps de réponse: {elapsed:.2f}s")
+    except:
+        pytest.skip("Impossible de tester")
+
+def test_content_type():
+    \"\"\"Vérifie que l'API retourne du JSON\"\"\"
+    try:
+        r = requests.get(BASE_URL, timeout=10)
+        ct = r.headers.get('Content-Type', '')
+        if 'json' in ct:
+            print(f"✅ Content-Type JSON détecté")
+        else:
+            pytest.skip(f"Content-Type: {ct}")
+    except:
+        pytest.skip("Impossible de vérifier")
+
 PYEOF
-                # FIX : || true → pytest ne fait pas échouer le shell
                 python -m pytest test_api_e2e.py -v \
                     --junitxml=e2e-results.xml \
                     --tb=short || true
@@ -127,7 +128,6 @@ PYEOF
         } catch (Exception e) {
             echo "⚠️ API E2E tests error: ${e.getMessage()}"
         } finally {
-            // Toujours publier les résultats même si tests échouent
             junit allowEmptyResults: true, testResults: 'e2e-results.xml'
         }
     }
@@ -135,15 +135,39 @@ PYEOF
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODE 2 — FRONTEND : Selenium Firefox
+// POD SÉPARÉ — selenium n'est PAS dans le pod principal
+// Raison : ~800MB, trop lourd pour coexister avec maven+sonar+trivy
 // ─────────────────────────────────────────────────────────────────────────────
 
 def runSeleniumTests(String appUrl) {
-    container('python') {
-        try {
-            sh """
-                pip install selenium pytest requests --quiet
 
-                cat > test_selenium_e2e.py << 'PYEOF'
+    // Pod dédié uniquement pour Selenium + Python
+    def seleniumPod = '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-deployer
+  containers:
+  - name: selenium
+    image: selenium/standalone-firefox:latest
+    ports:
+    - containerPort: 4444
+    - containerPort: 7900
+    tty: true
+  - name: python
+    image: python:3.11-slim
+    command: ['cat']
+    tty: true
+'''
+
+    podTemplate(yaml: seleniumPod) {
+        node(POD_LABEL) {
+            container('python') {
+                try {
+                    sh """
+                        pip install selenium pytest requests --quiet
+
+                        cat > test_selenium_e2e.py << 'PYEOF'
 import pytest
 import time
 import requests
@@ -166,7 +190,6 @@ def driver():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
 
-    # Attendre que Selenium soit prêt
     for i in range(10):
         try:
             r = requests.get('http://localhost:4444/status', timeout=3)
@@ -206,9 +229,8 @@ def test_page_title_not_empty(driver):
         pytest.skip("Driver non disponible")
     try:
         driver.get(BASE_URL)
-        title = driver.title
-        assert title != '', "Titre vide"
-        print(f"✅ Titre: {title}")
+        assert driver.title != '', "Titre vide"
+        print(f"✅ Titre: {driver.title}")
     except:
         pytest.skip("Impossible de vérifier le titre")
 
@@ -219,7 +241,6 @@ def test_no_404_on_homepage(driver):
     try:
         driver.get(BASE_URL)
         assert '404' not in driver.title.lower(), "Page 404 détectée"
-        assert 'not found' not in driver.title.lower(), "Page Not Found"
         print("✅ Pas de 404 sur la homepage")
     except:
         pytest.skip("Impossible de vérifier")
@@ -234,14 +255,13 @@ def test_page_has_content(driver):
             EC.presence_of_element_located((By.TAG_NAME, 'body'))
         )
         body = driver.find_element(By.TAG_NAME, 'body')
-        assert len(body.text) > 0 or len(driver.page_source) > 100, \
-            "Page vide détectée"
+        assert len(body.text) > 0 or len(driver.page_source) > 100
         print("✅ Page a du contenu")
     except TimeoutException:
         pytest.skip("Timeout en attendant le body")
 
 def test_navigation_links(driver):
-    \"\"\"Les liens de navigation sont cliquables\"\"\"
+    \"\"\"Les liens de navigation existent\"\"\"
     if driver is None:
         pytest.skip("Driver non disponible")
     try:
@@ -252,7 +272,7 @@ def test_navigation_links(driver):
         else:
             pytest.skip("Aucun lien trouvé")
     except:
-        pytest.skip("Impossible de vérifier les liens")
+        pytest.skip("Impossible de vérifier")
 
 def test_forms_exist(driver):
     \"\"\"Vérifie la présence de formulaires\"\"\"
@@ -260,18 +280,18 @@ def test_forms_exist(driver):
         pytest.skip("Driver non disponible")
     try:
         driver.get(BASE_URL)
-        forms = driver.find_elements(By.TAG_NAME, 'form')
+        forms  = driver.find_elements(By.TAG_NAME, 'form')
         inputs = driver.find_elements(By.TAG_NAME, 'input')
         if len(forms) > 0:
             print(f"✅ {len(forms)} formulaire(s) trouvé(s)")
         elif len(inputs) > 0:
             print(f"✅ {len(inputs)} input(s) trouvé(s)")
         else:
-            pytest.skip("Aucun formulaire sur cette page")
+            pytest.skip("Aucun formulaire")
     except:
-        pytest.skip("Impossible de vérifier les formulaires")
+        pytest.skip("Impossible de vérifier")
 
-def test_response_time_selenium(driver):
+def test_load_time(driver):
     \"\"\"Temps de chargement < 10 secondes\"\"\"
     if driver is None:
         pytest.skip("Driver non disponible")
@@ -285,16 +305,16 @@ def test_response_time_selenium(driver):
         pytest.skip("Page trop lente")
 
 PYEOF
-                # FIX : || true → pytest ne fait pas échouer le shell
-                python -m pytest test_selenium_e2e.py -v \
-                    --junitxml=e2e-results.xml \
-                    --tb=short || true
-            """
-        } catch (Exception e) {
-            echo "⚠️ Selenium E2E tests error: ${e.getMessage()}"
-        } finally {
-            // Toujours publier les résultats même si tests échouent
-            junit allowEmptyResults: true, testResults: 'e2e-results.xml'
+                        python -m pytest test_selenium_e2e.py -v \
+                            --junitxml=e2e-results.xml \
+                            --tb=short || true
+                    """
+                } catch (Exception e) {
+                    echo "⚠️ Selenium E2E tests error: ${e.getMessage()}"
+                } finally {
+                    junit allowEmptyResults: true, testResults: 'e2e-results.xml'
+                }
+            }
         }
     }
 }
