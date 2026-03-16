@@ -68,28 +68,52 @@ def call(Map config = [:]) {
         }
 
         // 4. GITLEAKS SCAN
-        stage('🔒 Security: Secret Scan (Gitleaks)') {
-            container('scanner') {
-                sh '''
-                    export PATH=$PATH:/tmp
-                    curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o /tmp/gitleaks
-                    chmod +x /tmp/gitleaks
-                    /tmp/gitleaks detect \
-                        --source=. \
-                        --report-path=gitleaks-report.json \
-                        --report-format=json \
-                        --no-git \
-                        --verbose || true
-
-                    if [ -f gitleaks-report.json ]; then
-                        echo "Gitleaks scan completed"
-                        cat gitleaks-report.json
-                    fi
-                '''
-                archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
-            }
-        }
-
+stage('🔒 Security: Secret Scan (Gitleaks)') {
+    container('scanner') {
+        sh '''
+            export PATH=$PATH:/tmp
+ 
+            # FIX : version fixe + extraction tar.gz
+            # "latest" redirige vers HTML sur GitHub → binaire corrompu
+            GITLEAKS_VERSION="8.18.4"
+            GITLEAKS_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+ 
+            echo "📦 Downloading Gitleaks v${GITLEAKS_VERSION}..."
+            curl -sSL "${GITLEAKS_URL}" -o /tmp/gitleaks.tar.gz
+ 
+            # Vérifier que le téléchargement est un tar.gz valide
+            if file /tmp/gitleaks.tar.gz | grep -q "gzip"; then
+                tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+                chmod +x /tmp/gitleaks
+                echo "✅ Gitleaks installed: $(/tmp/gitleaks version)"
+            else
+                echo "❌ Download failed — not a valid binary"
+                echo "Content: $(head -c 200 /tmp/gitleaks.tar.gz)"
+                exit 0
+            fi
+ 
+            /tmp/gitleaks detect \
+                --source=. \
+                --report-path=gitleaks-report.json \
+                --report-format=json \
+                --no-git \
+                --verbose || true
+ 
+            if [ -f gitleaks-report.json ]; then
+                echo "✅ Gitleaks scan completed"
+                SECRETS=$(cat gitleaks-report.json | grep -c '"RuleID"' || echo "0")
+                echo "🔍 Secrets found: ${SECRETS}"
+                if [ "${SECRETS}" -gt "0" ]; then
+                    echo "⚠️ WARNING: ${SECRETS} potential secret(s) detected!"
+                    cat gitleaks-report.json
+                else
+                    echo "✅ No secrets detected"
+                fi
+            fi
+        '''
+        archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+    }
+}
         // 5. INSTALL DEPENDENCIES
         stage('📦 Install Dependencies') {
             if (tech.language == 'Python') {

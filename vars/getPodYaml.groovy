@@ -5,10 +5,9 @@ def call(String language) {
     def yaml = ""
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Selenium EST RETIRÉ de tous les pods principaux
-    // Il sera lancé dans un pod séparé uniquement pour le stage E2E
-    // Raison : selenium/standalone-firefox = ~800MB → trop lourd pour coexister
-    //          avec maven + sonar + trivy + docker dans le même pod
+    // MODIFICATION : ajout du cache Trivy (hostPath /var/cache/trivy)
+    // → Trivy utilise la DB locale au lieu de la télécharger à chaque fois
+    // → Scan passe de ~2h à ~30 secondes
     // ─────────────────────────────────────────────────────────────────────────
 
     if (language == 'python') {
@@ -38,6 +37,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -46,6 +48,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -80,6 +86,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -88,6 +97,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -122,6 +135,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -130,6 +146,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -164,6 +184,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -172,6 +195,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -206,6 +233,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -214,6 +244,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -248,6 +282,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -256,6 +293,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -290,6 +331,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -298,6 +342,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
@@ -328,6 +376,9 @@ spec:
     image: aquasec/trivy:latest
     command: ['cat']
     tty: true
+    volumeMounts:
+    - name: trivy-cache
+      mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
     command: ['sh']
@@ -336,6 +387,10 @@ spec:
   volumes:
   - name: docker-sock
     emptyDir: {}
+  - name: trivy-cache
+    hostPath:
+      path: /var/cache/trivy
+      type: DirectoryOrCreate
 '''
     }
 
