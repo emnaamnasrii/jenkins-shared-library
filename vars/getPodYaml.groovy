@@ -5,9 +5,10 @@ def call(String language) {
     def yaml = ""
 
     // ─────────────────────────────────────────────────────────────────────────
-    // MODIFICATION : ajout du cache Trivy (hostPath /var/cache/trivy)
-    // → Trivy utilise la DB locale au lieu de la télécharger à chaque fois
-    // → Scan passe de ~2h à ~30 secondes
+    // MODIFICATIONS :
+    // 1. Cache Trivy (hostPath /var/cache/trivy) → scan ~30s au lieu de ~2h
+    // 2. imagePullPolicy: IfNotPresent → utilise l'image locale si disponible
+    //    → évite les téléchargements inutiles à chaque pipeline
     // ─────────────────────────────────────────────────────────────────────────
 
     if (language == 'python') {
@@ -19,10 +20,12 @@ spec:
   containers:
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -31,10 +34,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -42,6 +47,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -64,14 +70,17 @@ spec:
   containers:
   - name: node
     image: node:18-alpine
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -80,10 +89,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -91,6 +102,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -113,14 +125,17 @@ spec:
   containers:
   - name: maven
     image: maven:3.8.3-openjdk-17
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -129,10 +144,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -140,6 +157,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -162,14 +180,17 @@ spec:
   containers:
   - name: gradle
     image: gradle:8-jdk17
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -178,10 +199,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -189,6 +212,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -211,14 +235,17 @@ spec:
   containers:
   - name: golang
     image: golang:1.21-alpine
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -227,10 +254,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -238,6 +267,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -260,14 +290,17 @@ spec:
   containers:
   - name: php
     image: php:8.2-cli
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -276,10 +309,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -287,6 +322,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -309,14 +345,17 @@ spec:
   containers:
   - name: ruby
     image: ruby:3.2-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -325,10 +364,12 @@ spec:
       mountPath: /var/run
   - name: scanner
     image: sonarsource/sonar-scanner-cli:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -336,6 +377,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
@@ -358,14 +400,17 @@ spec:
   containers:
   - name: alpine
     image: alpine:3.18
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: python
     image: python:3.11-slim
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
   - name: docker
     image: docker:24-dind
+    imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
     tty: true
@@ -374,6 +419,7 @@ spec:
       mountPath: /var/run
   - name: trivy
     image: aquasec/trivy:latest
+    imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
     volumeMounts:
@@ -381,6 +427,7 @@ spec:
       mountPath: /root/.cache/trivy
   - name: kubectl
     image: lachlanevenson/k8s-kubectl:latest
+    imagePullPolicy: IfNotPresent
     command: ['sh']
     args: ['-c', 'while true; do sleep 1000; done']
     tty: true
