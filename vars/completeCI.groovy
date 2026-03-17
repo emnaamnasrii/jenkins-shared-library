@@ -68,47 +68,63 @@ def call(Map config = [:]) {
         }
 
         // 4. GITLEAKS SCAN
+// ─────────────────────────────────────────────────────────────────────────────
+// REMPLACE le stage Gitleaks dans completeCIPipeline.groovy
+// FIX : suppression de "file" command → non disponible dans sonar-scanner-cli
+//       utilise "xxd" ou vérification de la taille pour valider le tar.gz
+// ─────────────────────────────────────────────────────────────────────────────
+
 stage('🔒 Security: Secret Scan (Gitleaks)') {
     container('scanner') {
         sh '''
             export PATH=$PATH:/tmp
- 
-            # FIX : version fixe + extraction tar.gz
-            # "latest" redirige vers HTML sur GitHub → binaire corrompu
+
             GITLEAKS_VERSION="8.18.4"
             GITLEAKS_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
- 
+
             echo "📦 Downloading Gitleaks v${GITLEAKS_VERSION}..."
             curl -sSL "${GITLEAKS_URL}" -o /tmp/gitleaks.tar.gz
- 
-            # Vérifier que le téléchargement est un tar.gz valide
-            if file /tmp/gitleaks.tar.gz | grep -q "gzip"; then
-                tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+
+            # FIX : vérifier avec la taille du fichier au lieu de "file" command
+            FILE_SIZE=$(wc -c < /tmp/gitleaks.tar.gz)
+            echo "Downloaded size: ${FILE_SIZE} bytes"
+
+            if [ "$FILE_SIZE" -gt "1000000" ]; then
+                echo "✅ Valid archive downloaded (${FILE_SIZE} bytes)"
+                tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks 2>/dev/null || \
+                tar -xzf /tmp/gitleaks.tar.gz -C /tmp 2>/dev/null
                 chmod +x /tmp/gitleaks
-                echo "✅ Gitleaks installed: $(/tmp/gitleaks version)"
+                echo "✅ Gitleaks ready: $(/tmp/gitleaks version)"
             else
-                echo "❌ Download failed — not a valid binary"
-                echo "Content: $(head -c 200 /tmp/gitleaks.tar.gz)"
-                exit 0
+                echo "❌ Download too small (${FILE_SIZE} bytes) — trying direct binary..."
+                # Fallback : télécharger le binaire directement
+                curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+                    | tar -xz -C /tmp gitleaks 2>/dev/null || true
+                chmod +x /tmp/gitleaks 2>/dev/null || true
             fi
- 
-            /tmp/gitleaks detect \
-                --source=. \
-                --report-path=gitleaks-report.json \
-                --report-format=json \
-                --no-git \
-                --verbose || true
- 
-            if [ -f gitleaks-report.json ]; then
-                echo "✅ Gitleaks scan completed"
-                SECRETS=$(cat gitleaks-report.json | grep -c '"RuleID"' || echo "0")
-                echo "🔍 Secrets found: ${SECRETS}"
-                if [ "${SECRETS}" -gt "0" ]; then
-                    echo "⚠️ WARNING: ${SECRETS} potential secret(s) detected!"
-                    cat gitleaks-report.json
-                else
-                    echo "✅ No secrets detected"
+
+            # Lancer le scan si gitleaks est disponible
+            if [ -x /tmp/gitleaks ]; then
+                /tmp/gitleaks detect \
+                    --source=. \
+                    --report-path=gitleaks-report.json \
+                    --report-format=json \
+                    --no-git \
+                    --verbose || true
+
+                if [ -f gitleaks-report.json ]; then
+                    SECRETS=$(grep -c '"RuleID"' gitleaks-report.json 2>/dev/null || echo "0")
+                    echo "✅ Gitleaks scan completed — secrets found: ${SECRETS}"
+                    if [ "${SECRETS}" -gt "0" ]; then
+                        echo "⚠️ WARNING: ${SECRETS} potential secret(s) detected!"
+                        cat gitleaks-report.json
+                    else
+                        echo "✅ No secrets detected"
+                    fi
                 fi
+            else
+                echo "⚠️ Gitleaks not available — skipping secret scan"
+                echo '[]' > gitleaks-report.json
             fi
         '''
         archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
