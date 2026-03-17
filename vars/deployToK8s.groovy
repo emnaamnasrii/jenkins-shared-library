@@ -84,7 +84,7 @@ spec:
           readinessProbe:
             tcpSocket:
               port: ${port}
-            initialDelaySeconds: 180
+            initialDelaySeconds: 90
             periodSeconds: 10
             timeoutSeconds: 3
             successThreshold: 1
@@ -92,7 +92,7 @@ spec:
           livenessProbe:
             tcpSocket:
               port: ${port}
-            initialDelaySeconds: 300
+            initialDelaySeconds: 120
             periodSeconds: 30
             timeoutSeconds: 5
             successThreshold: 1
