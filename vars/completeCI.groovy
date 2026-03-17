@@ -189,23 +189,43 @@ EOT
             echo "✅ Built: ${env.FULL_IMAGE}"
         }
 
-     stage('📦 Pre-pull image on nodes') {
+stage('📦 Pre-pull image on nodes') {
     container('kubectl') {
         withKubeConfig([credentialsId: 'kubeconfig']) {
             sh """
                 echo "🔄 Pre-pulling ${env.FULL_IMAGE} on all nodes..."
-                kubectl create job prepull-${env.BUILD_NUMBER} \
-                    --image=${env.FULL_IMAGE} \
-                    --restart=Never \
+
+                # FIX : syntaxe correcte pour kubectl create job
+                kubectl apply -f - <<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prepull-${env.BUILD_NUMBER}
+  namespace: jenkins
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+      - name: prepull
+        image: ${env.FULL_IMAGE}
+        imagePullPolicy: Always
+        command: ['/bin/sh', '-c', 'echo Image pulled successfully']
+      restartPolicy: Never
+EOF
+
+                # Attendre que le job finisse (max 3 min)
+                kubectl wait job/prepull-${env.BUILD_NUMBER} \
                     -n jenkins \
-                    -- /bin/sh -c "echo pulled on \$(hostname)" || true
-                sleep 60
+                    --for=condition=complete \
+                    --timeout=180s || true
+
                 kubectl delete job prepull-${env.BUILD_NUMBER} -n jenkins --ignore-not-found || true
                 echo "✅ Pre-pull complete"
             """
         }
     }
-} 
+}
 
         // 11. TRIVY SCANS
         stage('🔍 Security: Vulnerability Scan (Trivy)') {
