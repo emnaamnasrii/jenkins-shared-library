@@ -189,65 +189,23 @@ EOT
             echo "✅ Built: ${env.FULL_IMAGE}"
         }
 
-        // 10. PRE-PULL IMAGE SUR LES NOEUDS
-        // ─────────────────────────────────────────────────────────────────
-        // FIX : force le téléchargement de l'image sur TOUS les noeuds
-        // avant le déploiement → évite ContainerCreating long au deploy
-        // ─────────────────────────────────────────────────────────────────
-        stage('📦 Pre-pull image on nodes') {
-            container('kubectl') {
-                withKubeConfig([credentialsId: 'kubeconfig']) {
-                    sh """
-                        echo "🔄 Pre-pulling ${env.FULL_IMAGE} on all nodes..."
-
-                        # Créer un DaemonSet temporaire qui force le pull sur tous les noeuds
-                        kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: prepull-${env.BUILD_NUMBER}
-  namespace: jenkins
-spec:
-  selector:
-    matchLabels:
-      app: prepull-${env.BUILD_NUMBER}
-  template:
-    metadata:
-      labels:
-        app: prepull-${env.BUILD_NUMBER}
-    spec:
-      initContainers:
-      - name: prepull
-        image: ${env.FULL_IMAGE}
-        imagePullPolicy: Always
-        command: ['/bin/sh', '-c', 'echo Image pulled on \$(hostname)']
-      containers:
-      - name: pause
-        image: pause:3.1
-        imagePullPolicy: IfNotPresent
-EOF
-
-                        # Attendre que l'image soit pulled sur tous les noeuds (max 3 min)
-                        for i in \$(seq 1 18); do
-                            READY=\$(kubectl get daemonset prepull-${env.BUILD_NUMBER} -n jenkins \
-                                -o jsonpath='{.status.numberReady}' 2>/dev/null || echo '0')
-                            DESIRED=\$(kubectl get daemonset prepull-${env.BUILD_NUMBER} -n jenkins \
-                                -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo '0')
-                            if [ "\$READY" = "\$DESIRED" ] && [ "\$DESIRED" != "0" ]; then
-                                echo "✅ Image pre-pulled on all \$READY nodes"
-                                break
-                            fi
-                            echo "  Waiting for pre-pull... (\$i/18) - Ready: \$READY/\$DESIRED"
-                            sleep 10
-                        done
-
-                        # Supprimer le DaemonSet temporaire
-                        kubectl delete daemonset prepull-${env.BUILD_NUMBER} -n jenkins || true
-                        echo "✅ Pre-pull complete"
-                    """
-                }
-            }
+     stage('📦 Pre-pull image on nodes') {
+    container('kubectl') {
+        withKubeConfig([credentialsId: 'kubeconfig']) {
+            sh """
+                echo "🔄 Pre-pulling ${env.FULL_IMAGE} on all nodes..."
+                kubectl create job prepull-${env.BUILD_NUMBER} \
+                    --image=${env.FULL_IMAGE} \
+                    --restart=Never \
+                    -n jenkins \
+                    -- /bin/sh -c "echo pulled on \$(hostname)" || true
+                sleep 60
+                kubectl delete job prepull-${env.BUILD_NUMBER} -n jenkins --ignore-not-found || true
+                echo "✅ Pre-pull complete"
+            """
         }
+    }
+} 
 
         // 11. TRIVY SCANS
         stage('🔍 Security: Vulnerability Scan (Trivy)') {
