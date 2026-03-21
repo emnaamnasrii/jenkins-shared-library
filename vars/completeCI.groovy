@@ -19,46 +19,40 @@ def call(Map config = [:]) {
         // ══════════════════════════════════════════════════════════════════
         // 1. CLONE REPO
         // ══════════════════════════════════════════════════════════════════
-     stage('📥 Clone Repository') {
+   stage('📥 Clone Repository') {
     script {
-        def branches = ['main', 'master', 'develop', 'dev', 'trunk']
-        def cloned = false
+        // Détecter la branche par défaut via git ls-remote
+        // Fonctionne avec TOUS les repos sans connaître la branche à l'avance
+        def defaultBranch = sh(
+            script: """
+                git ls-remote --symref ${repoUrl} HEAD 2>/dev/null \
+                | grep 'ref:' \
+                | sed 's|ref: refs/heads/||' \
+                | awk '{print \$1}' \
+                | head -1
+            """,
+            returnStdout: true
+        ).trim()
 
-        for (b in branches) {
-            try {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: "*/${b}"]],
-                    doGenerateSubmoduleConfigurations: false,
-                    extensions: [],
-                    userRemoteConfigs: [[
-                        url           : repoUrl,
-                        credentialsId : 'github-creds'
-                    ]]
-                ])
-                echo "✅ Cloned: ${repoUrl} (branch: ${b})"
-                env.GIT_BRANCH_USED = b
-                cloned = true
-                break
-            } catch (err) {
-                echo "⚠️ Branch '${b}' not found..."
-            }
+        if (!defaultBranch || defaultBranch == '') {
+            defaultBranch = 'master'
         }
 
-        // Fallback — branche par défaut du repo
-        if (!cloned) {
-            checkout([
-                $class: 'GitSCM',
-                branches: [[name: '*/HEAD']],
-                doGenerateSubmoduleConfigurations: false,
-                extensions: [],
-                userRemoteConfigs: [[
-                    url          : repoUrl,
-                    credentialsId: 'github-creds'
-                ]]
-            ])
-            echo "✅ Cloned using default branch"
-        }
+        echo "🔍 Detected default branch: ${defaultBranch}"
+
+        checkout([
+            \$class: 'GitSCM',
+            branches: [[name: "*/${defaultBranch}"]],
+            doGenerateSubmoduleConfigurations: false,
+            extensions: [],
+            userRemoteConfigs: [[
+                url          : repoUrl,
+                credentialsId: 'github-creds'
+            ]]
+        ])
+
+        echo "✅ Cloned: ${repoUrl} (branch: ${defaultBranch})"
+        env.GIT_BRANCH_USED = defaultBranch
     }
 }
 
