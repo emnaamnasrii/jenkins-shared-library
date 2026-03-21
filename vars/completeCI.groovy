@@ -19,25 +19,48 @@ def call(Map config = [:]) {
         // ══════════════════════════════════════════════════════════════════
         // 1. CLONE REPO
         // ══════════════════════════════════════════════════════════════════
-        stage('📥 Clone Repository') {
-            script {
-                def branches = ['main', 'master']
-                def cloned = false
-                for (b in branches) {
-                    try {
-                        git url: repoUrl, branch: b, credentialsId: 'github-creds'
-                        echo "✅ Repository cloned: ${repoUrl} (branch: ${b})"
-                        cloned = true
-                        break
-                    } catch (err) {
-                        echo "⚠️ Branch '${b}' not found, trying next..."
-                    }
-                }
-                if (!cloned) {
-                    error "❌ Could not clone repository. No valid branch found."
-                }
+     stage('📥 Clone Repository') {
+    script {
+        def branches = ['main', 'master', 'develop', 'dev', 'trunk']
+        def cloned = false
+
+        for (b in branches) {
+            try {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${b}"]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url           : repoUrl,
+                        credentialsId : 'github-creds'
+                    ]]
+                ])
+                echo "✅ Cloned: ${repoUrl} (branch: ${b})"
+                env.GIT_BRANCH_USED = b
+                cloned = true
+                break
+            } catch (err) {
+                echo "⚠️ Branch '${b}' not found..."
             }
         }
+
+        // Fallback — branche par défaut du repo
+        if (!cloned) {
+            checkout([
+                $class: 'GitSCM',
+                branches: [[name: '*/HEAD']],
+                doGenerateSubmoduleConfigurations: false,
+                extensions: [],
+                userRemoteConfigs: [[
+                    url          : repoUrl,
+                    credentialsId: 'github-creds'
+                ]]
+            ])
+            echo "✅ Cloned using default branch"
+        }
+    }
+}
 
         // ══════════════════════════════════════════════════════════════════
         // 2. DETECT TECHNOLOGY
