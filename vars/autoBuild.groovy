@@ -2,7 +2,7 @@
 
 def call(Map config = [:]) {
 
-    def language = config.language ?: detectLanguage()
+    def language = config.language ?: detectTech()
     def imageName = config.imageName ?: env.JOB_NAME.toLowerCase().replaceAll('/', '-')
     def imageTag = "${env.BUILD_NUMBER}"
 

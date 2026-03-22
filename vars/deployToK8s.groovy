@@ -18,7 +18,7 @@ def call(Map config = [:]) {
     appName   = appName.replaceAll('[/_]', '-').toLowerCase()
     namespace = namespace.replaceAll('[/_]', '-').toLowerCase()
 
-    def language = detectLanguage()
+    def language = detectTech()
     def port     = detectPort(language)
 
     def labels = [
