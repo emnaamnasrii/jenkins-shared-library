@@ -228,15 +228,14 @@ def call(Map config = [:]) {
         // ══════════════════════════════════════════════════════════════════
         // 12. PRE-PULL IMAGES SUR LES NOEUDS
         // ══════════════════════════════════════════════════════════════════
-        stage('📦 Pre-pull images on nodes') {
-            container('kubectl') {
-                withKubeConfig([credentialsId: 'kubeconfig']) {
-
-                    if (hasFrontend && env.FRONTEND_IMAGE) {
-                        parallel(
-                            'Pre-pull Backend': {
-                                sh """
-                                    kubectl apply -f - <<EOF
+stage('📦 Pre-pull images on nodes') {
+    container('kubectl') {
+        withKubeConfig([credentialsId: 'kubeconfig']) {
+            if (hasFrontend && env.FRONTEND_IMAGE) {
+                parallel(
+                    'Pre-pull Backend': {
+                        sh """
+                            kubectl apply -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -244,24 +243,36 @@ metadata:
   namespace: jenkins
 spec:
   ttlSecondsAfterFinished: 60
+  backoffLimit: 2
   template:
     spec:
       containers:
       - name: prepull
         image: ${env.FULL_IMAGE}
-        imagePullPolicy: Always
-        command: ['/bin/sh', '-c', 'echo backend pulled']
+        imagePullPolicy: IfNotPresent
+        command: ['/bin/sh', '-c', 'echo "Backend image pulled: ${env.FULL_IMAGE}"']
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
       restartPolicy: Never
 EOF
-                                    kubectl wait job/prepull-back-${env.BUILD_NUMBER} \
-                                        -n jenkins --for=condition=complete --timeout=180s || true
-                                    kubectl delete job prepull-back-${env.BUILD_NUMBER} \
-                                        -n jenkins --ignore-not-found || true
-                                """
-                            },
-                            'Pre-pull Frontend': {
-                                sh """
-                                    kubectl apply -f - <<EOF
+                            echo "⏳ Waiting for backend image pull..."
+                            kubectl wait job/prepull-back-${env.BUILD_NUMBER} \
+                                -n jenkins --for=condition=complete --timeout=300s || {
+                                echo "⚠️ Backend pre-pull timeout, but continuing..."
+                                kubectl logs -l job-name=prepull-back-${env.BUILD_NUMBER} -n jenkins --tail=20 || true
+                            }
+                            kubectl delete job prepull-back-${env.BUILD_NUMBER} \
+                                -n jenkins --ignore-not-found || true
+                        """
+                    },
+                    'Pre-pull Frontend': {
+                        sh """
+                            kubectl apply -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -269,25 +280,37 @@ metadata:
   namespace: jenkins
 spec:
   ttlSecondsAfterFinished: 60
+  backoffLimit: 2
   template:
     spec:
       containers:
       - name: prepull
         image: ${env.FRONTEND_IMAGE}
-        imagePullPolicy: Always
-        command: ['/bin/sh', '-c', 'echo frontend pulled']
+        imagePullPolicy: IfNotPresent
+        command: ['/bin/sh', '-c', 'echo "Frontend image pulled: ${env.FRONTEND_IMAGE}"']
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
       restartPolicy: Never
 EOF
-                                    kubectl wait job/prepull-front-${env.BUILD_NUMBER} \
-                                        -n jenkins --for=condition=complete --timeout=180s || true
-                                    kubectl delete job prepull-front-${env.BUILD_NUMBER} \
-                                        -n jenkins --ignore-not-found || true
-                                """
+                            echo "⏳ Waiting for frontend image pull..."
+                            kubectl wait job/prepull-front-${env.BUILD_NUMBER} \
+                                -n jenkins --for=condition=complete --timeout=300s || {
+                                echo "⚠️ Frontend pre-pull timeout, but continuing..."
+                                kubectl logs -l job-name=prepull-front-${env.BUILD_NUMBER} -n jenkins --tail=20 || true
                             }
-                        )
-                    } else {
-                        sh """
-                            kubectl apply -f - <<EOF
+                            kubectl delete job prepull-front-${env.BUILD_NUMBER} \
+                                -n jenkins --ignore-not-found || true
+                        """
+                    }
+                )
+            } else {
+                sh """
+                    kubectl apply -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -295,26 +318,37 @@ metadata:
   namespace: jenkins
 spec:
   ttlSecondsAfterFinished: 60
+  backoffLimit: 2
   template:
     spec:
       containers:
       - name: prepull
         image: ${env.FULL_IMAGE}
         imagePullPolicy: Always
-        command: ['/bin/sh', '-c', 'echo pulled']
+        command: ['/bin/sh', '-c', 'echo "Image pulled: ${env.FULL_IMAGE}"']
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
       restartPolicy: Never
 EOF
-                            kubectl wait job/prepull-${env.BUILD_NUMBER} \
-                                -n jenkins --for=condition=complete --timeout=180s || true
-                            kubectl delete job prepull-${env.BUILD_NUMBER} \
-                                -n jenkins --ignore-not-found || true
-                        """
+                    echo "⏳ Waiting for image pull..."
+                    kubectl wait job/prepull-${env.BUILD_NUMBER} \
+                        -n jenkins --for=condition=complete --timeout=300s || {
+                        echo "⚠️ Pre-pull timeout, but continuing..."
+                        kubectl logs -l job-name=prepull-${env.BUILD_NUMBER} -n jenkins --tail=20 || true
                     }
-                    echo "✅ Pre-pull complete"
-                }
+                    kubectl delete job prepull-${env.BUILD_NUMBER} \
+                        -n jenkins --ignore-not-found || true
+                """
             }
+            echo "✅ Pre-pull complete (or skipped due to timeout)"
         }
-
+    }
+}
         // ══════════════════════════════════════════════════════════════════
         // 13. TRIVY SCANS
         // ══════════════════════════════════════════════════════════════════
