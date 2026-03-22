@@ -150,6 +150,7 @@ spec:
   containers:
   - name: selenium
     image: selenium/standalone-firefox:latest
+    imagePullPolicy: IfNotPresent
     ports:
     - containerPort: 4444
     - containerPort: 7900
