@@ -262,7 +262,7 @@ spec:
 EOF
                             echo "⏳ Waiting for backend image pull..."
                             kubectl wait job/prepull-back-${env.BUILD_NUMBER} \
-                                -n jenkins --for=condition=complete --timeout=300s || {
+                                -n jenkins --for=condition=complete --timeout=900s || {
                                 echo "⚠️ Backend pre-pull timeout, but continuing..."
                                 kubectl logs -l job-name=prepull-back-${env.BUILD_NUMBER} -n jenkins --tail=20 || true
                             }
@@ -299,7 +299,7 @@ spec:
 EOF
                             echo "⏳ Waiting for frontend image pull..."
                             kubectl wait job/prepull-front-${env.BUILD_NUMBER} \
-                                -n jenkins --for=condition=complete --timeout=300s || {
+                                -n jenkins --for=condition=complete --timeout=900s || {
                                 echo "⚠️ Frontend pre-pull timeout, but continuing..."
                                 kubectl logs -l job-name=prepull-front-${env.BUILD_NUMBER} -n jenkins --tail=20 || true
                             }
@@ -337,7 +337,7 @@ spec:
 EOF
                     echo "⏳ Waiting for image pull..."
                     kubectl wait job/prepull-${env.BUILD_NUMBER} \
-                        -n jenkins --for=condition=complete --timeout=300s || {
+                        -n jenkins --for=condition=complete --timeout=900s || {
                         echo "⚠️ Pre-pull timeout, but continuing..."
                         kubectl logs -l job-name=prepull-${env.BUILD_NUMBER} -n jenkins --tail=20 || true
                     }
