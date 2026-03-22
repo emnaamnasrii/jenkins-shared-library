@@ -248,27 +248,34 @@ def buildAndPush(String imageName, String imageTag, String frontendDir, String f
 // ═══════════════════════════════════════════════════════════════════════════
 // Génère le Dockerfile selon le type
 // ═══════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+// REMPLACE la fonction generateDockerfile dans buildFrontend.groovy
+// FIX : suppression du || echo qui masquait les erreurs de build
+//       + vérification que les fichiers sont bien générés
+//       + fallback automatique build/ → dist/ → out/
+// ─────────────────────────────────────────────────────────────────────────────
+
 def generateDockerfile(String type, String distDir) {
     if (type == 'nextjs') {
         return """
 FROM node:18-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --legacy-peer-deps || npm install
+RUN npm install --legacy-peer-deps
 
 FROM node:18-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build || echo "Build completed"
+RUN npm run build
 
 FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=builder /app/public ./public || true
-COPY --from=builder /app/.next/standalone ./ || true
-COPY --from=builder /app/.next/static ./.next/static || true
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 EXPOSE 3000
 CMD ["node", "server.js"]
 """
@@ -277,9 +284,9 @@ CMD ["node", "server.js"]
 FROM node:18-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --legacy-peer-deps || npm install
+RUN npm install --legacy-peer-deps
 COPY . .
-RUN npm run build || echo "Build completed"
+RUN npm run build
 
 FROM node:18-alpine
 WORKDIR /app
@@ -288,18 +295,40 @@ EXPOSE 3000
 CMD ["node", "server/index.mjs"]
 """
     } else {
-        // React, Vue, Angular, Svelte, Gatsby - all use Nginx
+        // React, Vue, Angular, Svelte → nginx
         return """
 FROM node:18-alpine AS build
 WORKDIR /app
+
+# Installer les dépendances
 COPY package*.json ./
-RUN npm install --legacy-peer-deps || npm install
+RUN npm install --legacy-peer-deps
+
+# Copier le code source
 COPY . .
-RUN npm run build || npm run generate || echo "Build completed"
+
+# Build — sans || echo pour voir les vraies erreurs
+RUN npm run build
+
+# Chercher automatiquement le dossier de sortie
+# et le copier dans /output pour le stage suivant
+RUN if [ -d /app/build ] && [ "\$(ls -A /app/build)" ]; then \\
+        echo "✅ Using build/" && cp -r /app/build /output; \\
+    elif [ -d /app/dist ] && [ "\$(ls -A /app/dist)" ]; then \\
+        echo "✅ Using dist/" && cp -r /app/dist /output; \\
+    elif [ -d /app/out ] && [ "\$(ls -A /app/out)" ]; then \\
+        echo "✅ Using out/" && cp -r /app/out /output; \\
+    else \\
+        echo "❌ Build failed — no output directory found" && \\
+        echo "Contents of /app:" && ls -la /app/ && exit 1; \\
+    fi
 
 FROM nginx:alpine
-COPY --from=build /app/${distDir} /usr/share/nginx/html
-RUN echo 'server { listen 80; location / { root /usr/share/nginx/html; index index.html; try_files \$uri \$uri/ /index.html; } }' > /etc/nginx/conf.d/default.conf
+COPY --from=build /output /usr/share/nginx/html
+
+# Config nginx SPA — toutes les routes → index.html
+RUN printf 'server {\\n  listen 80;\\n  location / {\\n    root /usr/share/nginx/html;\\n    index index.html;\\n    try_files \$uri \$uri/ /index.html;\\n  }\\n}\\n' > /etc/nginx/conf.d/default.conf
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 """
