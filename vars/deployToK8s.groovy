@@ -6,6 +6,7 @@
 // 3. Fix READY vide → ${READY:-0} — évite "sh: out of range"
 // 4. Fix readyPods vide → valeur par défaut '0' — évite "For input string: ''"
 // 5. Fix externalIP vide → valeur par défaut 'pending'
+// 6. FIX detectTech Map → extract language String
 // ─────────────────────────────────────────────────────────────────────────────
 
 def call(Map config = [:]) {
@@ -18,7 +19,9 @@ def call(Map config = [:]) {
     appName   = appName.replaceAll('[/_]', '-').toLowerCase()
     namespace = namespace.replaceAll('[/_]', '-').toLowerCase()
 
-    def language = detectTech()
+    // FIX 6: Extraire le langage depuis detectTech (retourne un Map)
+    def techStack = detectTech()
+    def language = techStack.language  // Extraire la String
     def port     = detectPort(language)
 
     def labels = [
@@ -35,7 +38,9 @@ def call(Map config = [:]) {
     if (dbConfig.deployed) {
         echo "Database    : ${dbConfig.type} at ${dbConfig.serviceName}:${dbConfig.port}"
     }
+    echo "Tech Stack  : ${techStack}"
     echo "Language    : ${language}"
+    echo "Framework   : ${techStack.framework}"
     echo "Detected Port: ${port}"
     echo "Replicas    : ${replicas}"
     echo "========================================="
@@ -161,7 +166,6 @@ done
 """
 
             // ── Récupérer les infos finales ────────────────────────────
-            // FIX 4 : valeur par défaut pour éviter "For input string: ''"
             def externalIP = sh(
                 script: """kubectl get svc ${appName} -n ${namespace} \\
                            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo 'pending'""",
@@ -169,7 +173,6 @@ done
             ).trim()
             if (!externalIP || externalIP == '') externalIP = 'pending'
 
-            // FIX 5 : valeur par défaut pour éviter "For input string: ''"
             def readyPods = sh(
                 script: """kubectl get deployment ${appName} -n ${namespace} \\
                            -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo '0'""",
@@ -200,10 +203,6 @@ done
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Database env helpers
-// FIX 2 : suppression de shortDbHost — on garde le nom DNS complet
-//         ex: emnamnasrii-test-app-db.dev.svc.cluster.local
-//         Le nom court "emnamnasrii-test-app-db" seul ne se résout pas
-//         dans Kubernetes quand les pods sont sur des nœuds différents
 // ─────────────────────────────────────────────────────────────────────────────
 
 def generateDatabaseEnv(Map dbConfig, String appName, String namespace, String language) {
@@ -249,7 +248,8 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
           - name: DATABASE_URL
             value: "mysql://user:user123@${dbHost}:${dbPort}/${appName}"
 """
-    if (language in ['java-maven', 'java-gradle']) {
+    // JAVA
+    if (language == 'Java') {
         env += """
           - name: SPRING_DATASOURCE_URL
             value: "jdbc:mysql://${dbHost}:${dbPort}/${appName}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
@@ -265,7 +265,8 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
             value: "false"
 """
     }
-    if (language == 'python') {
+    // PYTHON
+    if (language == 'Python') {
         env += """
           - name: MYSQL_HOST
             value: "${dbHost}"
@@ -281,7 +282,8 @@ def generateMySQLEnv(String dbHost, int dbPort, String appName, String language)
             value: "mysql+pymysql://user:user123@${dbHost}:${dbPort}/${appName}"
 """
     }
-    if (language == 'nodejs') {
+    // NODE.JS
+    if (language == 'Node.js') {
         env += """
           - name: MYSQL_HOST
             value: "${dbHost}"
@@ -313,7 +315,8 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
           - name: DATABASE_URL
             value: "postgresql://user:postgres123@${dbHost}:${dbPort}/${appName}"
 """
-    if (language in ['java-maven', 'java-gradle']) {
+    // JAVA
+    if (language == 'Java') {
         env += """
           - name: SPRING_DATASOURCE_URL
             value: "jdbc:postgresql://${dbHost}:${dbPort}/${appName}"
@@ -327,7 +330,8 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
             value: "org.hibernate.dialect.PostgreSQLDialect"
 """
     }
-    if (language == 'python') {
+    // PYTHON
+    if (language == 'Python') {
         env += """
           - name: POSTGRES_HOST
             value: "${dbHost}"
@@ -343,7 +347,8 @@ def generatePostgreSQLEnv(String dbHost, int dbPort, String appName, String lang
             value: "postgresql://user:postgres123@${dbHost}:${dbPort}/${appName}"
 """
     }
-    if (language == 'nodejs') {
+    // NODE.JS
+    if (language == 'Node.js') {
         env += """
           - name: PGHOST
             value: "${dbHost}"
@@ -376,7 +381,8 @@ def generateMongoDBEnv(String dbHost, int dbPort, String appName, String languag
           - name: MONGODB_URI
             value: "${mongoUri}"
 """
-    if (language in ['java-maven', 'java-gradle']) {
+    // JAVA
+    if (language == 'Java') {
         env += """
           - name: SPRING_DATA_MONGODB_URI
             value: "${mongoUri}"
@@ -384,7 +390,8 @@ def generateMongoDBEnv(String dbHost, int dbPort, String appName, String languag
             value: "${appName}"
 """
     }
-    if (language == 'python') {
+    // PYTHON
+    if (language == 'Python') {
         env += """
           - name: MONGO_URL
             value: "${mongoUri}"
@@ -404,7 +411,8 @@ def generateRedisEnv(String dbHost, int dbPort, String language) {
           - name: REDIS_URL
             value: "redis://:redis123@${dbHost}:${dbPort}/0"
 """
-    if (language in ['java-maven', 'java-gradle']) {
+    // JAVA
+    if (language == 'Java') {
         env += """
           - name: SPRING_REDIS_HOST
             value: "${dbHost}"
@@ -418,11 +426,12 @@ def generateRedisEnv(String dbHost, int dbPort, String language) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Language & Port detection
+// Port detection
 // ─────────────────────────────────────────────────────────────────────────────
 
 def detectPort(language) {
-    if (language == 'python') {
+    // PYTHON
+    if (language == 'Python') {
         if (fileExists('requirements.txt')) {
             def req = readFile('requirements.txt').toLowerCase()
             if (req.contains('fastapi') || req.contains('django')) return 8000
@@ -430,10 +439,21 @@ def detectPort(language) {
         }
         return 5000
     }
-    if (language == 'nodejs')                        return 3000
-    if (language in ['java-maven', 'java-gradle'])   return 8080
-    if (language == 'golang')                        return 8080
-    if (language == 'php')                           return 80
-    if (language == 'ruby')                          return 3000
+    // NODE.JS
+    if (language == 'Node.js') return 3000
+    
+    // JAVA
+    if (language == 'Java') return 8080
+    
+    // GO
+    if (language == 'Go') return 8080
+    
+    // PHP
+    if (language == 'PHP') return 80
+    
+    // RUBY
+    if (language == 'Ruby') return 3000
+    
+    echo "⚠️ Unknown language: ${language}, defaulting to port 8080"
     return 8080
 }
