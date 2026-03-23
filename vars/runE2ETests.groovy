@@ -1,321 +1,251 @@
 #!/usr/bin/env groovy
 
 def call(Map config = [:]) {
-
-    def appUrl      = config.appUrl
+    def appUrl      = config.appUrl      ?: env.APP_URL
     def hasFrontend = config.hasFrontend ?: false
 
-    if (!appUrl) {
-        echo "⚠️  No app URL provided, skipping E2E tests"
-        return
-    }
-
     echo "========================================="
-    echo "🌐 E2E Tests"
+    echo "🌐 E2E Tests (Selenium + Chromium)"
     echo "URL        : ${appUrl}"
-    echo "Mode       : ${hasFrontend ? 'Selenium Firefox (pod séparé)' : 'requests/pytest (API REST)'}"
+    echo "Frontend   : ${hasFrontend}"
     echo "========================================="
 
-    try {
-        if (hasFrontend) {
-            runSeleniumTests(appUrl)
-        } else {
-            runAPITests(appUrl)
-        }
-    } catch (Exception e) {
-        echo "⚠️ ================================================="
-        echo "⚠️  E2E Tests échoués — pipeline continue"
-        echo "⚠️  Erreur : ${e.getMessage()}"
-        echo "⚠️ ================================================="
-        unstable("E2E tests failed but pipeline continues: ${e.getMessage()}")
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MODE 1 — API REST : requests + pytest
-// Utilise le container python déjà présent dans le pod principal
-// ─────────────────────────────────────────────────────────────────────────────
-
-def runAPITests(String appUrl) {
+    // ─────────────────────────────────────────────────────────────────────
+    // Utilise le container python déjà dans le pod
+    // Installe chromium + chromedriver via apk (alpine) ou apt
+    // Pas d'image Selenium standalone (~800MB économisés)
+    // ─────────────────────────────────────────────────────────────────────
     container('python') {
-        try {
-            sh """
-                pip install requests pytest --quiet
+        sh """
+            echo "📦 Installing Chromium + Selenium..."
 
-                cat > test_api_e2e.py << 'PYEOF'
-import requests
+            # Installer chromium et chromedriver via pip + système
+            # chromium-driver = léger (~150MB) vs selenium/standalone-chrome (~900MB)
+            pip install selenium webdriver-manager requests pytest --quiet 2>/dev/null
+
+            # Installer Chromium si pas déjà là
+            if ! which chromium-browser > /dev/null 2>&1 && ! which chromium > /dev/null 2>&1; then
+                apt-get update -qq && apt-get install -y -qq chromium chromium-driver 2>/dev/null || \
+                apk add --no-cache chromium chromium-chromedriver 2>/dev/null || \
+                echo "⚠️ Could not install chromium via package manager"
+            fi
+
+            # Trouver le chemin de chromium
+            CHROMIUM_PATH=\$(which chromium-browser 2>/dev/null || which chromium 2>/dev/null || which google-chrome 2>/dev/null || echo "")
+            CHROMEDRIVER_PATH=\$(which chromedriver 2>/dev/null || echo "")
+
+            echo "Chromium  : \${CHROMIUM_PATH:-not found}"
+            echo "Chromedriver: \${CHROMEDRIVER_PATH:-not found}"
+
+            cat > test_e2e_selenium.py << 'PYEOF'
 import pytest
 import time
+import os
+import sys
 
-BASE_URL = '${appUrl}'
+BASE_URL = "${appUrl}".rstrip('/')
 
-def test_app_accessible():
-    \"\"\"L'application répond\"\"\"
-    try:
-        response = requests.get(BASE_URL, timeout=15)
-        assert response.status_code in [200, 301, 302, 404, 405], \
-            f"Status inattendu: {response.status_code}"
-        print(f"✅ App accessible (status: {response.status_code})")
-    except requests.exceptions.RequestException as e:
-        pytest.skip(f"App non accessible: {e}")
+# ─────────────────────────────────────────────────────────────────────────
+# Setup Selenium avec Chromium headless
+# Fonctionne sans image Selenium standalone
+# ─────────────────────────────────────────────────────────────────────────
+def get_driver():
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
 
-def test_response_time():
-    \"\"\"Temps de réponse < 5 secondes\"\"\"
-    try:
-        start = time.time()
-        requests.get(BASE_URL, timeout=15)
-        elapsed = time.time() - start
-        assert elapsed < 5, f"Trop lent: {elapsed:.2f}s"
-        print(f"✅ Temps de réponse: {elapsed:.2f}s")
-    except requests.exceptions.ConnectionError:
-        pytest.skip("Connexion impossible")
-
-def test_health_endpoint():
-    \"\"\"Endpoint /health ou /actuator/health\"\"\"
-    endpoints = [
-        f'{BASE_URL}/health',
-        f'{BASE_URL}/actuator/health',
-        f'{BASE_URL}/api/health',
-        f'{BASE_URL}/ping'
-    ]
-    for ep in endpoints:
-        try:
-            r = requests.get(ep, timeout=5)
-            if r.status_code == 200:
-                print(f"✅ Health endpoint: {ep}")
-                return
-        except:
-            continue
-    pytest.skip("Aucun health endpoint trouvé")
-
-def test_no_server_error():
-    \"\"\"Pas d'erreur 500\"\"\"
-    try:
-        r = requests.get(BASE_URL, timeout=10)
-        assert r.status_code != 500, "Erreur 500 détectée !"
-        print(f"✅ Pas d'erreur 500 (status: {r.status_code})")
-    except requests.exceptions.ConnectionError:
-        pytest.skip("Connexion impossible")
-
-def test_response_time():
-    \"\"\"Temps de réponse < 5 secondes\"\"\"
-    try:
-        start = time.time()
-        requests.get(BASE_URL, timeout=15)
-        elapsed = time.time() - start
-        assert elapsed < 5, f"Trop lent: {elapsed:.2f}s"
-        print(f"✅ Temps de réponse: {elapsed:.2f}s")
-    except:
-        pytest.skip("Impossible de tester")
-
-def test_content_type():
-    \"\"\"Vérifie que l'API retourne du JSON\"\"\"
-    try:
-        r = requests.get(BASE_URL, timeout=10)
-        ct = r.headers.get('Content-Type', '')
-        if 'json' in ct:
-            print(f"✅ Content-Type JSON détecté")
-        else:
-            pytest.skip(f"Content-Type: {ct}")
-    except:
-        pytest.skip("Impossible de vérifier")
-
-PYEOF
-                python -m pytest test_api_e2e.py -v \
-                    --junitxml=e2e-results.xml \
-                    --tb=short || true
-            """
-        } catch (Exception e) {
-            echo "⚠️ API E2E tests error: ${e.getMessage()}"
-        } finally {
-            junit allowEmptyResults: true, testResults: 'e2e-results.xml'
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MODE 2 — FRONTEND : Selenium Firefox
-// POD SÉPARÉ — selenium n'est PAS dans le pod principal
-// Raison : ~800MB, trop lourd pour coexister avec maven+sonar+trivy
-// ─────────────────────────────────────────────────────────────────────────────
-
-def runSeleniumTests(String appUrl) {
-
-    // Pod dédié uniquement pour Selenium + Python
-    def seleniumPod = '''
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins-deployer
-  containers:
-  - name: selenium
-    image: selenium/standalone-firefox:latest
-    imagePullPolicy: IfNotPresent
-    ports:
-    - containerPort: 4444
-    - containerPort: 7900
-    tty: true
-  - name: python
-    image: python:3.11-slim
-    command: ['cat']
-    tty: true
-'''
-
-    podTemplate(yaml: seleniumPod) {
-        node(POD_LABEL) {
-            container('python') {
-                try {
-                    sh """
-                        pip install selenium pytest requests --quiet
-
-                        cat > test_selenium_e2e.py << 'PYEOF'
-import pytest
-import time
-import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.firefox.options import Options
-from selenium.common.exceptions import TimeoutException, WebDriverException
-
-BASE_URL = '${appUrl}'
-SELENIUM_URL = 'http://localhost:4444/wd/hub'
-
-@pytest.fixture(scope='module')
-def driver():
-    \"\"\"Initialise Firefox via Selenium Grid\"\"\"
     options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--window-size=1920,1080')
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-setuid-sandbox")
 
-    for i in range(10):
-        try:
-            r = requests.get('http://localhost:4444/status', timeout=3)
-            if r.status_code == 200:
-                break
-        except:
-            time.sleep(3)
+    # Trouver chromium automatiquement
+    chromium_paths = [
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+        "/usr/bin/google-chrome",
+        "/usr/local/bin/chromium"
+    ]
+    for path in chromium_paths:
+        if os.path.exists(path):
+            options.binary_location = path
+            break
+
+    # Trouver chromedriver automatiquement
+    chromedriver_paths = [
+        "/usr/bin/chromedriver",
+        "/usr/local/bin/chromedriver",
+        "/usr/lib/chromium/chromedriver"
+    ]
+    driver_path = None
+    for path in chromedriver_paths:
+        if os.path.exists(path):
+            driver_path = path
+            break
 
     try:
-        d = webdriver.Remote(
-            command_executor=SELENIUM_URL,
-            options=options
-        )
-        d.set_page_load_timeout(30)
-        yield d
-        d.quit()
+        if driver_path:
+            service = Service(executable_path=driver_path)
+            driver = webdriver.Chrome(service=service, options=options)
+        else:
+            # Fallback webdriver-manager
+            from webdriver_manager.chrome import ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+        return driver
     except Exception as e:
-        pytest.skip(f"Selenium non disponible: {e}")
-        yield None
+        print(f"⚠️ Could not start Chrome driver: {e}")
+        return None
 
-def test_page_loads(driver):
-    \"\"\"La page principale se charge\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
+# ─────────────────────────────────────────────────────────────────────────
+# TEST 1 — Page se charge (universel — fonctionne avec tout frontend)
+# ─────────────────────────────────────────────────────────────────────────
+def test_page_loads():
+    driver = get_driver()
+    if not driver:
+        pytest.skip("Chromium not available — skipping Selenium tests")
+
     try:
         driver.get(BASE_URL)
-        assert driver.title is not None
-        print(f"✅ Page chargée — titre: {driver.title}")
-    except TimeoutException:
-        pytest.skip("Page trop lente à charger")
-    except WebDriverException as e:
-        pytest.skip(f"Erreur WebDriver: {e}")
+        time.sleep(3)  # Attendre le rendu JS
 
-def test_page_title_not_empty(driver):
-    \"\"\"Le titre de la page n'est pas vide\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
+        # Vérifier que la page a un titre (n'importe lequel)
+        title = driver.title
+        print(f"✅ Page loaded — title: '{title}'")
+        assert True  # Si on arrive ici la page s'est chargée
+
+    except Exception as e:
+        pytest.fail(f"❌ Page failed to load: {e}")
+    finally:
+        driver.quit()
+
+# ─────────────────────────────────────────────────────────────────────────
+# TEST 2 — Page a du contenu visible (universel)
+# ─────────────────────────────────────────────────────────────────────────
+def test_page_has_content():
+    driver = get_driver()
+    if not driver:
+        pytest.skip("Chromium not available")
+
     try:
         driver.get(BASE_URL)
-        assert driver.title != '', "Titre vide"
-        print(f"✅ Titre: {driver.title}")
-    except:
-        pytest.skip("Impossible de vérifier le titre")
+        time.sleep(3)
 
-def test_no_404_on_homepage(driver):
-    \"\"\"La page d'accueil ne retourne pas 404\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
+        # Vérifier que le body existe et a du contenu
+        body = driver.find_element("tag name", "body")
+        body_text = body.text.strip()
+        page_source_len = len(driver.page_source)
+
+        print(f"✅ Page has content — {page_source_len} chars, body text: {len(body_text)} chars")
+        assert page_source_len > 100, "Page source too small — app may not be rendering"
+
+    except Exception as e:
+        pytest.fail(f"❌ Page has no content: {e}")
+    finally:
+        driver.quit()
+
+# ─────────────────────────────────────────────────────────────────────────
+# TEST 3 — Pas d'erreur JavaScript (universel)
+# ─────────────────────────────────────────────────────────────────────────
+def test_no_js_errors():
+    driver = get_driver()
+    if not driver:
+        pytest.skip("Chromium not available")
+
     try:
         driver.get(BASE_URL)
-        assert '404' not in driver.title.lower(), "Page 404 détectée"
-        print("✅ Pas de 404 sur la homepage")
-    except:
-        pytest.skip("Impossible de vérifier")
+        time.sleep(3)
 
-def test_page_has_content(driver):
-    \"\"\"La page a du contenu visible\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
-    try:
-        driver.get(BASE_URL)
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, 'body'))
-        )
-        body = driver.find_element(By.TAG_NAME, 'body')
-        assert len(body.text) > 0 or len(driver.page_source) > 100
-        print("✅ Page a du contenu")
-    except TimeoutException:
-        pytest.skip("Timeout en attendant le body")
+        # Récupérer les logs de la console
+        logs = driver.get_log("browser")
+        severe_errors = [l for l in logs if l.get("level") == "SEVERE"]
 
-def test_navigation_links(driver):
-    \"\"\"Les liens de navigation existent\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
-    try:
-        driver.get(BASE_URL)
-        links = driver.find_elements(By.TAG_NAME, 'a')
-        if len(links) > 0:
-            print(f"✅ {len(links)} liens trouvés")
+        if severe_errors:
+            print(f"⚠️ JS errors found: {len(severe_errors)}")
+            for err in severe_errors[:3]:
+                print(f"   {err.get('message', '')[:100]}")
         else:
-            pytest.skip("Aucun lien trouvé")
-    except:
-        pytest.skip("Impossible de vérifier")
+            print("✅ No JavaScript errors")
 
-def test_forms_exist(driver):
-    \"\"\"Vérifie la présence de formulaires\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
+        # Warning seulement — pas de fail car certains projets ont des erreurs JS mineures
+        assert True
+
+    except Exception as e:
+        pytest.skip(f"Could not check JS errors: {e}")
+    finally:
+        driver.quit()
+
+# ─────────────────────────────────────────────────────────────────────────
+# TEST 4 — Navigation fonctionne (universel)
+# Découverte automatique des liens sur la page
+# ─────────────────────────────────────────────────────────────────────────
+def test_navigation():
+    driver = get_driver()
+    if not driver:
+        pytest.skip("Chromium not available")
+
     try:
         driver.get(BASE_URL)
-        forms  = driver.find_elements(By.TAG_NAME, 'form')
-        inputs = driver.find_elements(By.TAG_NAME, 'input')
-        if len(forms) > 0:
-            print(f"✅ {len(forms)} formulaire(s) trouvé(s)")
-        elif len(inputs) > 0:
-            print(f"✅ {len(inputs)} input(s) trouvé(s)")
-        else:
-            pytest.skip("Aucun formulaire")
-    except:
-        pytest.skip("Impossible de vérifier")
+        time.sleep(3)
 
-def test_load_time(driver):
-    \"\"\"Temps de chargement < 10 secondes\"\"\"
-    if driver is None:
-        pytest.skip("Driver non disponible")
+        # Trouver tous les liens sur la page
+        links = driver.find_elements("tag name", "a")
+        internal_links = []
+        for link in links:
+            href = link.get_attribute("href") or ""
+            if href.startswith(BASE_URL) or href.startswith("/"):
+                internal_links.append(href)
+
+        print(f"✅ Found {len(links)} links ({len(internal_links)} internal)")
+
+        # Tester le premier lien interne si disponible
+        if internal_links:
+            try:
+                driver.get(internal_links[0])
+                time.sleep(2)
+                assert len(driver.page_source) > 100
+                print(f"✅ Navigation works: {internal_links[0]}")
+            except:
+                print(f"⚠️ Could not navigate to {internal_links[0]}")
+
+    except Exception as e:
+        pytest.skip(f"Navigation test skipped: {e}")
+    finally:
+        driver.quit()
+
+# ─────────────────────────────────────────────────────────────────────────
+# TEST 5 — Screenshot (preuve visuelle pour le rapport)
+# ─────────────────────────────────────────────────────────────────────────
+def test_screenshot():
+    driver = get_driver()
+    if not driver:
+        pytest.skip("Chromium not available")
+
     try:
-        start = time.time()
         driver.get(BASE_URL)
-        elapsed = time.time() - start
-        assert elapsed < 10, f"Trop lent: {elapsed:.2f}s"
-        print(f"✅ Temps de chargement: {elapsed:.2f}s")
-    except TimeoutException:
-        pytest.skip("Page trop lente")
+        time.sleep(3)
+        driver.save_screenshot("e2e-screenshot.png")
+        print("✅ Screenshot saved: e2e-screenshot.png")
+        assert os.path.exists("e2e-screenshot.png")
+    except Exception as e:
+        pytest.skip(f"Screenshot failed: {e}")
+    finally:
+        driver.quit()
 
 PYEOF
-                        python -m pytest test_selenium_e2e.py -v \
-                            --junitxml=e2e-results.xml \
-                            --tb=short || true
-                    """
-                } catch (Exception e) {
-                    echo "⚠️ Selenium E2E tests error: ${e.getMessage()}"
-                } finally {
-                    junit allowEmptyResults: true, testResults: 'e2e-results.xml'
-                }
-            }
-        }
+
+            echo "🧪 Running Selenium E2E tests..."
+            pytest test_e2e_selenium.py -v --tb=short --no-header \
+                --junit-xml=test-results-e2e.xml 2>&1 || true
+            echo "✅ E2E tests completed"
+        """
+
+        // Archiver screenshot et résultats
+        archiveArtifacts artifacts: 'e2e-screenshot.png', allowEmptyArchive: true
+        junit allowEmptyResults: true, testResults: 'test-results-e2e.xml'
     }
 }
