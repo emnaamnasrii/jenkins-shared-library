@@ -254,23 +254,27 @@ def buildAndPush(String imageName, String imageTag, String frontendDir, String f
 //       + vérification que les fichiers sont bien générés
 //       + fallback automatique build/ → dist/ → out/
 // ─────────────────────────────────────────────────────────────────────────────
-
 def generateDockerfile(String type, String distDir) {
+    
+    // ═══════════════════════════════════════════════════════════════
+    // NEXT.JS
+    // ═══════════════════════════════════════════════════════════════
+    
     if (type == 'nextjs') {
         return """
-FROM node:18-alpine AS deps
+FROM node:16-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
-FROM node:18-alpine AS builder
+FROM node:16-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM node:18-alpine AS runner
+FROM node:16-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
@@ -279,39 +283,53 @@ COPY --from=builder /app/.next/static ./.next/static
 EXPOSE 3000
 CMD ["node", "server.js"]
 """
-    } else if (type == 'nuxt') {
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // NUXT.JS
+    // ═══════════════════════════════════════════════════════════════
+    
+    else if (type == 'nuxt') {
         return """
-FROM node:18-alpine AS build
+FROM node:16-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 COPY . .
 RUN npm run build
 
-FROM node:18-alpine
+FROM node:16-alpine
 WORKDIR /app
 COPY --from=build /app/.output ./
 EXPOSE 3000
 CMD ["node", "server/index.mjs"]
 """
-    } else {
-        // React, Vue, Angular, Svelte → nginx
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // REACT / VUE / ANGULAR / SVELTE → NGINX
+    // ═══════════════════════════════════════════════════════════════
+    
+    else {
         return """
-FROM node:18-alpine AS build
+FROM node:16-alpine AS build
 WORKDIR /app
 
-# Installer les dépendances
+# Copier package files
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+
+# Install avec triple fallback strategy
+RUN npm ci --legacy-peer-deps 2>/dev/null || \\
+    npm install --legacy-peer-deps 2>/dev/null || \\
+    npm install --force
 
 # Copier le code source
 COPY . .
 
-# Build — sans || echo pour voir les vraies erreurs
+# Build
 RUN npm run build
 
 # Chercher automatiquement le dossier de sortie
-# et le copier dans /output pour le stage suivant
 RUN if [ -d /app/build ] && [ "\$(ls -A /app/build)" ]; then \\
         echo "✅ Using build/" && cp -r /app/build /output; \\
     elif [ -d /app/dist ] && [ "\$(ls -A /app/dist)" ]; then \\
@@ -323,13 +341,31 @@ RUN if [ -d /app/build ] && [ "\$(ls -A /app/build)" ]; then \\
         echo "Contents of /app:" && ls -la /app/ && exit 1; \\
     fi
 
+# Stage final : Nginx
 FROM nginx:alpine
+
+# Copier le build
 COPY --from=build /output /usr/share/nginx/html
 
-# Config nginx SPA — toutes les routes → index.html
-RUN printf 'server {\\n  listen 80;\\n  location / {\\n    root /usr/share/nginx/html;\\n    index index.html;\\n    try_files \$uri \$uri/ /index.html;\\n  }\\n}\\n' > /etc/nginx/conf.d/default.conf
+# Configuration Nginx pour SPA (toutes les routes → index.html)
+RUN printf 'server {\\n\\
+  listen 80;\\n\\
+  server_name _;\\n\\
+  root /usr/share/nginx/html;\\n\\
+  index index.html;\\n\\
+\\n\\
+  location / {\\n\\
+    try_files \$uri \$uri/ /index.html;\\n\\
+  }\\n\\
+\\n\\
+  location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {\\n\\
+    expires 1y;\\n\\
+    add_header Cache-Control "public, immutable";\\n\\
+  }\\n\\
+}\\n' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]
 """
     }
