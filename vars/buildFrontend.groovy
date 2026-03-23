@@ -1,10 +1,5 @@
 #!/usr/bin/env groovy
 
-// ═══════════════════════════════════════════════════════════════════════════
-// buildFrontend.groovy — ULTRA-GÉNÉRIQUE
-// Fonctionne avec TOUS les emplacements et TOUS les frameworks frontend
-// ═══════════════════════════════════════════════════════════════════════════
-
 def call(Map config = [:]) {
     def imageName = config.imageName ?: "${env.JOB_NAME.toLowerCase().replaceAll('/', '-')}-frontend"
     def imageTag  = config.imageTag  ?: "${env.BUILD_NUMBER}"
@@ -13,7 +8,6 @@ def call(Map config = [:]) {
     echo "🔍 SCANNING PROJECT FOR FRONTEND..."
     echo "========================================="
 
-    // ── ÉTAPE 1 : Trouver TOUS les package.json ──────────────────────────
     def allPackageJsons = findAllPackageJson()
 
     if (allPackageJsons.isEmpty()) {
@@ -24,7 +18,6 @@ def call(Map config = [:]) {
     echo "📦 Found ${allPackageJsons.size()} package.json file(s):"
     allPackageJsons.each { echo "   - ${it}" }
 
-    // ── ÉTAPE 2 : Filtrer les frontends réels ────────────────────────────
     def frontendCandidates = allPackageJsons.findAll { path ->
         def pkg = readFile(path).toLowerCase()
         pkg.contains('"react"')       ||
@@ -38,11 +31,10 @@ def call(Map config = [:]) {
     }
 
     if (frontendCandidates.isEmpty()) {
-        echo "⚠️  No frontend framework detected — using first package.json: ${allPackageJsons[0]}"
+        echo "⚠️  No frontend framework detected — using first package.json"
         frontendCandidates = [allPackageJsons[0]]
     }
 
-    // ── ÉTAPE 3 : Choisir le meilleur frontend ───────────────────────────
     def selectedFrontend = selectBestFrontend(frontendCandidates)
     def frontendDir  = selectedFrontend.dir
     def frontendType = selectedFrontend.type
@@ -56,47 +48,28 @@ def call(Map config = [:]) {
     echo "Image      : ${imageName}:${imageTag}"
     echo "========================================="
 
-    // ── ÉTAPE 4 : Build et Push ──────────────────────────────────────────
     return buildAndPush(imageName, imageTag, frontendDir, frontendType, distDir)
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Trouve TOUS les package.json (récursif, exclut node_modules)
-// ═══════════════════════════════════════════════════════════════════════════
 def findAllPackageJson() {
     def result = sh(
         script: 'find . -name "package.json" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" 2>/dev/null || true',
         returnStdout: true
     ).trim()
-
     if (!result) return []
     return result.split('\n').collect { it.trim() }.findAll { it }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Sélectionne le meilleur frontend parmi les candidats
-// ═══════════════════════════════════════════════════════════════════════════
 def selectBestFrontend(List<String> candidates) {
-    def priorities = [
-        'react-frontend', 'frontend', 'client', 'ui', 'web', 'app', 'front',
-        'vue-app', 'angular-app', 'next-app', 'webapp'
-    ]
-
+    def priorities = ['react-frontend', 'frontend', 'client', 'ui', 'web', 'app', 'front', 'vue-app', 'angular-app', 'next-app', 'webapp']
     for (priority in priorities) {
-        def match = candidates.find {
-            it.contains("/${priority}/") || it == "./${priority}/package.json"
-        }
+        def match = candidates.find { it.contains("/${priority}/") || it == "./${priority}/package.json" }
         if (match) return analyzeFrontend(match)
     }
-
-    // Préférer le plus proche de la racine
     def sorted = candidates.sort { a, b -> a.count('/') <=> b.count('/') }
     return analyzeFrontend(sorted[0])
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Analyse un package.json et retourne les infos du frontend
-// ═══════════════════════════════════════════════════════════════════════════
 def analyzeFrontend(String packageJsonPath) {
     def dir = packageJsonPath.replaceAll('/package\\.json$', '').replaceAll('^\\./', '')
     if (!dir || dir == 'package.json') dir = '.'
@@ -124,68 +97,47 @@ def analyzeFrontend(String packageJsonPath) {
     return [dir: dir, type: type, distDir: distDir]
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Build HTML statique (fallback)
-// ═══════════════════════════════════════════════════════════════════════════
 def buildStaticHTML(String imageName, String imageTag) {
     def htmlFile = sh(
-        script: 'find . -name "index.html" -type f -not -path "*/node_modules/*" -not -path "*/.git/*" | head -1',
+        script: 'find . -name "index.html" -type f -not -path "*/node_modules/*" | head -1',
         returnStdout: true
     ).trim()
-
     if (!htmlFile) error("❌ No package.json and no index.html found.")
 
     def htmlDir = htmlFile.replaceAll('/index\\.html$', '').replaceAll('^\\./', '') ?: '.'
-    echo "✅ Building static HTML from: ${htmlDir}"
 
     stage('🐳 Build Static HTML Image') {
         container('docker') {
-            writeFile file: 'Dockerfile.static', text: '''FROM nginx:alpine
-COPY . /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-'''
-            sh """
-                docker build -f Dockerfile.static -t ${imageName}:${imageTag} ${htmlDir}
-                docker tag ${imageName}:${imageTag} ${imageName}:latest
-            """
+            writeFile file: 'Dockerfile.static', text: 'FROM nginx:alpine\nCOPY . /usr/share/nginx/html\nEXPOSE 80\nCMD ["nginx", "-g", "daemon off;"]\n'
+            sh "docker build -f Dockerfile.static -t ${imageName}:${imageTag} ${htmlDir} && docker tag ${imageName}:${imageTag} ${imageName}:latest"
         }
     }
-
     stage('📤 Push Static HTML Image') {
         container('docker') {
-            withCredentials([usernamePassword(
-                credentialsId: 'dockerhub-creds',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
-                sh """
-                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                    docker push ${imageName}:${imageTag}
-                    docker push ${imageName}:latest
-                """
+            withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin && docker push ${imageName}:${imageTag} && docker push ${imageName}:latest"
             }
         }
     }
-
-    return [
-        imageName   : imageName,
-        imageTag    : imageTag,
-        fullImage   : "${imageName}:${imageTag}",
-        frontendType: 'html',
-        frontendDir : htmlDir
-    ]
+    return [imageName: imageName, imageTag: imageTag, fullImage: "${imageName}:${imageTag}", frontendType: 'html', frontendDir: htmlDir]
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Build et Push l'image Docker
-// ═══════════════════════════════════════════════════════════════════════════
 def buildAndPush(String imageName, String imageTag, String frontendDir, String frontendType, String distDir) {
     def dockerfilePath = "${frontendDir}/Dockerfile.generated"
+    // FIX : écrire aussi le fichier nginx séparément
+    // pour éviter que le printf dans le Dockerfile soit interprété comme instruction Docker
+    def nginxConfPath  = "${frontendDir}/nginx.conf.generated"
 
     stage('🐳 Generate Dockerfile') {
         container('docker') {
-            def dockerfile = generateDockerfile(frontendType, distDir)
+
+            // ── Écrire la config nginx dans un fichier séparé ────────────
+            // Les $ dans try_files sont écrits dans un fichier séparé
+            // → pas de problème d'échappement dans le Dockerfile
+            writeFile file: nginxConfPath, text: 'server {\n    listen 80;\n    server_name _;\n    root /usr/share/nginx/html;\n    index index.html;\n    location / {\n        try_files $uri $uri/ /index.html;\n    }\n}\n'
+
+            // ── Générer le Dockerfile ─────────────────────────────────────
+            def dockerfile = generateDockerfile(frontendType, distDir, nginxConfPath)
             writeFile file: dockerfilePath, text: dockerfile
             echo "✅ Dockerfile generated: ${dockerfilePath}"
         }
@@ -206,11 +158,7 @@ def buildAndPush(String imageName, String imageTag, String frontendDir, String f
 
     stage('📤 Push Frontend Image') {
         container('docker') {
-            withCredentials([usernamePassword(
-                credentialsId: 'dockerhub-creds',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
+            withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                 sh """
                     echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                     docker push ${imageName}:${imageTag}
@@ -221,23 +169,12 @@ def buildAndPush(String imageName, String imageTag, String frontendDir, String f
         }
     }
 
-    return [
-        imageName   : imageName,
-        imageTag    : imageTag,
-        fullImage   : "${imageName}:${imageTag}",
-        frontendType: frontendType,
-        frontendDir : frontendDir
-    ]
+    return [imageName: imageName, imageTag: imageTag, fullImage: "${imageName}:${imageTag}", frontendType: frontendType, frontendDir: frontendDir]
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Génère le Dockerfile selon le type
-// FIX : utiliser writeFile avec single quotes pour éviter les problèmes
-//       avec $ dans les regex nginx
-// ═══════════════════════════════════════════════════════════════════════════
-def generateDockerfile(String type, String distDir) {
+def generateDockerfile(String type, String distDir, String nginxConfPath) {
 
-    // ── NEXT.JS ──────────────────────────────────────────────────────────
+    // ── NEXT.JS ───────────────────────────────────────────────────────────
     if (type == 'nextjs') {
         return '''FROM node:18-alpine AS deps
 WORKDIR /app
@@ -279,11 +216,14 @@ CMD ["node", "server/index.mjs"]
 '''
     }
 
-    // ── REACT / VUE / ANGULAR / SVELTE / GATSBY → NGINX ──────────────────
+    // ── REACT / VUE / ANGULAR / SVELTE → NGINX ───────────────────────────
     else {
-        // FIX : utiliser writeFile avec single-quote string + écriture du
-        //       fichier nginx séparément pour éviter les $ dans les GStrings
-        return '''FROM node:18-alpine AS build
+        // FIX : la config nginx est dans un fichier séparé (nginx.conf.generated)
+        // COPY nginx.conf.generated → /etc/nginx/conf.d/default.conf
+        // → pas de printf avec $ dans le Dockerfile → pas d'erreur Docker
+        def nginxFilename = nginxConfPath.replaceAll('.+/', '')  // juste le nom du fichier
+
+        return """FROM node:16-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
@@ -293,24 +233,21 @@ COPY . .
 
 RUN npm run build
 
-RUN if [ -d /app/build ] && [ "$(ls -A /app/build 2>/dev/null)" ]; then \
-        echo "Using build/" && cp -r /app/build /output; \
-    elif [ -d /app/dist ] && [ "$(ls -A /app/dist 2>/dev/null)" ]; then \
-        echo "Using dist/" && cp -r /app/dist /output; \
-    elif [ -d /app/out ] && [ "$(ls -A /app/out 2>/dev/null)" ]; then \
-        echo "Using out/" && cp -r /app/out /output; \
-    else \
-        echo "ERROR: no build output found" && ls -la /app/ && exit 1; \
+RUN if [ -d /app/build ] && [ "\$(ls -A /app/build 2>/dev/null)" ]; then \\
+        echo "Using build/" && cp -r /app/build /output; \\
+    elif [ -d /app/dist ] && [ "\$(ls -A /app/dist 2>/dev/null)" ]; then \\
+        echo "Using dist/" && cp -r /app/dist /output; \\
+    elif [ -d /app/out ] && [ "\$(ls -A /app/out 2>/dev/null)" ]; then \\
+        echo "Using out/" && cp -r /app/out /output; \\
+    else \\
+        echo "ERROR: no build output found" && ls -la /app/ && exit 1; \\
     fi
 
 FROM nginx:alpine
 COPY --from=build /output /usr/share/nginx/html
-
-RUN printf 'server {\n  listen 80;\n  server_name _;\n  root /usr/share/nginx/html;\n  index index.html;\n  location / {\n    try_files $uri $uri/ /index.html;\n  }\n}\n' \
-    > /etc/nginx/conf.d/default.conf
-
+COPY ${nginxFilename} /etc/nginx/conf.d/default.conf
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
-'''
+"""
     }
 }
